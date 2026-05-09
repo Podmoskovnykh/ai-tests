@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVG Plant Growing Simulation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #87CEEB, #E0F6FF);
+            overflow: hidden;
+        }
+        
+        svg {
+            width: 400px;
+            height: 600px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+    <svg viewBox="0 0 400 600" xmlns="http://www.w3.org/2000/svg">
+        <!-- Stem -->
+        <g id="plant">
+            <path id="stem" d="M200,500 L200,300" stroke="#2E8B57" stroke-width="12" fill="none" stroke-linecap="round"/>
+            
+            <!-- Leaves -->
+            <g id="leaves">
+                <!-- Left leaves -->
+                <path id="leftLeaf1" d="M180,400 C150,380 140,350 160,330" stroke="#228B22" stroke-width="8" fill="none"/>
+                <path id="leftLeaf2" d="M170,350 C130,330 120,300 140,280" stroke="#228B22" stroke-width="8" fill="none"/>
+                <path id="leftLeaf3" d="M160,300 C110,280 100,250 120,230" stroke="#228B22" stroke-width="8" fill="none"/>
+                
+                <!-- Right leaves -->
+                <path id="rightLeaf1" d="M220,400 C250,380 260,350 240,330" stroke="#228B22" stroke-width="8" fill="none"/>
+                <path id="rightLeaf2" d="M230,350 C270,330 280,300 260,280" stroke="#228B22" stroke-width="8" fill="none"/>
+                <path id="rightLeaf3" d="M240,300 C290,280 300,250 280,230" stroke="#228B22" stroke-width="8" fill="none"/>
+            </g>
+            
+            <!-- Flowers -->
+            <circle id="flowerCenter" cx="200" cy="180" r="15" fill="#FFD700"/>
+            <g id="petals">
+                <circle cx="200" cy="150" r="8" fill="#FF69B4"/>
+                <circle cx="230" cy="180" r="8" fill="#FF69B4"/>
+                <circle cx="200" cy="210" r="8" fill="#FF69B4"/>
+                <circle cx="170" cy="180" r="8" fill="#FF69B4"/>
+                <circle cx="185" cy="160" r="8" fill="#FF69B4"/>
+                <circle cx="215" cy="160" r="8" fill="#FF69B4"/>
+                <circle cx="215" cy="200" r="8" fill="#FF69B4"/>
+                <circle cx="185" cy="200" r="8" fill="#FF69B4"/>
+            </g>
+        </g>
+    </svg>
+
+    <script>
+        // Plant growing simulation with springy/windy physics
+        const svgNS = "http://www.w3.org/2000/svg";
+        
+        // Stem growth
+        const stem = document.getElementById("stem");
+        let stemY1 = 500;
+        let stemY2 = 500;
+        const stemTargetY2 = 300;
+        const stemGrowthSpeed = 0.5;
+        
+        // Leaf properties
+        const leaves = [
+            {id: "leftLeaf1", baseD: "M180,400 C150,380 140,350 160,330", amplitude: 15, frequency: 0.02, phase: 0},
+            {id: "leftLeaf2", baseD: "M170,350 C130,330 120,300 140,280", amplitude: 12, frequency: 0.025, phase: Math.PI/3},
+            {id: "leftLeaf3", baseD: "M160,300 C110,280 100,250 120,230", amplitude: 10, frequency: 0.03, phase: Math.PI*2/3},
+            {id: "rightLeaf1", baseD: "M220,400 C250,380 260,350 240,330", amplitude: 15, frequency: 0.02, phase: Math.PI},
+            {id: "rightLeaf2", baseD: "M230,350 C270,330 280,300 260,280", amplitude: 12, frequency: 0.025, phase: Math.PI+Math.PI/3},
+            {id: "rightLeaf3", baseD: "M240,300 C290,280 300,250 280,230", amplitude: 10, frequency: 0.03, phase: Math.PI+Math.PI*2/3}
+        ];
+        
+        // Flower properties
+        const flowerCenter = document.getElementById("flowerCenter");
+        const petals = document.getElementById("petals").children;
+        let flowerScale = 0;
+        const flowerTargetScale = 1;
+        const flowerGrowthSpeed = 0.02;
+        
+        // Animation loop
+        let time = 0;
+        
+        function animate() {
+            time += 0.016; // ~60 FPS
+            
+            // Stem growth with easing
+            if (stemY2 > stemTargetY2) {
+                stemY2 -= stemGrowthSpeed;
+                stem.setAttribute("d", `M200,${stemY1} L200,${stemY2}`);
+            }
+            
+            // Leaf unfurling and wind physics
+            leaves.forEach((leaf, index) => {
+                const leafElement = document.getElementById(leaf.id);
+                if (leafElement) {
+                    // Unfurl based on stem growth
+                    const unfurlProgress = Math.min(1, (500 - stemY2) / (500 - stemTargetY2));
+                    
+                    // Wind physics - springy oscillation
+                    const windOffset = Math.sin(time * leaf.frequency + leaf.phase) * leaf.amplitude * unfurlProgress;
+                    
+                    // Modify leaf path based on unfurl and wind
+                    const points = leaf.baseD.split(" ");
+                    // Simple unfurl animation - in a real implementation, we'd modify control points
+                    // For simplicity, we'll just apply a transform
+                    leafElement.setAttribute("transform", `translate(${windOffset}, 0)`);
+                }
+            });
+            
+            // Flower blooming
+            if (stemY2 <= stemTargetY2 && flowerScale < flowerTargetScale) {
+                flowerScale += flowerGrowthSpeed;
+                flowerCenter.setAttribute("r", 15 * flowerScale);
+                
+                // Scale petals
+                Array.from(petals).forEach((petal, i) => {
+                    const angle = (i * Math.PI * 2) / petals.length;
+                    const radius = 30 * flowerScale;
+                    const cx = 200 + Math.cos(angle) * radius;
+                    const cy = 180 + Math.sin(angle) * radius;
+                    petal.setAttribute("cx", cx);
+                    petal.setAttribute("cy", cy);
+                    petal.setAttribute("r", 8 * flowerScale);
+                });
+            }
+            
+            // Continuous looping wind effect even after growth
+            leaves.forEach((leaf, index) => {
+                const leafElement = document.getElementById(leaf.id);
+                if (leafElement) {
+                    const windOffset = Math.sin(time * leaf.frequency + leaf.phase) * leaf.amplitude * 0.5;
+                    leafElement.setAttribute("transform", `translate(${windOffset}, 0)`);
+                }
+            });
+            
+            requestAnimationFrame(animate);
+        }
+        
+        // Start animation when page loads
+        window.addEventListener('load', animate);
+    </script>
+</body>
+</html>

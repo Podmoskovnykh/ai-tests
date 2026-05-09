@@ -14,11 +14,11 @@
 
 ## Модели
 
-| Модель | Провайдер | Задачи | Время выполнения |
-|---|---|---|---|
-| `kimi-k2.6` | Nvidia | svg | 4m 1s |
-| `minimax-m2.5` | OpenCode Zen | svg | 36s |
-| `nemotron-3-super-free` | OpenCode Zen | svg | provider error |
+| Модель | Провайдер | Задачи | Время выполнения | Потраченные токены |
+|---|---|---|---| ---|
+| `kimi-k2.6` | Nvidia | svg | 4m 1s | ? |
+| `minimax-m2.5` | OpenCode Zen | svg | 36s | ? |
+| `nemotron-3-super-free` | OpenCode Zen | svg | 2m 22s | ~44.000 |
 
 
 

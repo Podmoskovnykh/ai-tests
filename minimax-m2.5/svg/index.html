@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Growing Plant</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      background: linear-gradient(to top, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      overflow: hidden;
+    }
+    svg {
+      width: 100%;
+      height: 100vh;
+    }
+    .stem {
+      stroke: #2d5a27;
+      stroke-width: 4;
+      stroke-linecap: round;
+      fill: none;
+    }
+    .leaf {
+      fill: #4a9c2d;
+      stroke: #2d5a27;
+      stroke-width: 1;
+    }
+    .ground {
+      fill: #1a1a2e;
+    }
+  </style>
+</head>
+<body>
+  <svg viewBox="0 0 400 600" preserveAspectRatio="xMidYMax meet">
+    <defs>
+      <linearGradient id="stemGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#1e4620"/>
+        <stop offset="100%" style="stop-color:#3d7a2a"/>
+      </linearGradient>
+      <linearGradient id="leafGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style="stop-color:#5cb85c"/>
+        <stop offset="100%" style="stop-color:#2d5a27"/>
+      </linearGradient>
+    </defs>
+    <ellipse class="ground" cx="200" cy="580" rx="180" ry="30"/>
+    <g id="plant"></g>
+  </svg>
+
+  <script>
+    const svg = document.getElementById('plant');
+    const centerX = 200;
+    const groundY = 560;
+
+    const LEAVES = [
+      { angle: -45, size: 35, timing: 2000 },
+      { angle: 40, size: 32, timing: 2500 },
+      { angle: -60, size: 28, timing: 3200 },
+      { angle: 55, size: 30, timing: 3800 },
+      { angle: -35, size: 25, timing: 4200 },
+    ];
+
+    class Spring {
+      constructor(target, stiffness = 0.1, damping = 0.8) {
+        this.value = target;
+        this.target = target;
+        this.velocity = 0;
+        this.stiffness = stiffness;
+        this.damping = damping;
+      }
+      update(target) {
+        this.target = target;
+        const force = (this.target - this.value) * this.stiffness;
+        this.velocity += force;
+        this.velocity *= this.damping;
+        this.value += this.velocity;
+        return this.value;
+      }
+      setTarget(t) { this.target = t; }
+    }
+
+    class Leaf {
+      constructor(x, y, angle, size) {
+        this.x = x;
+        this.y = y;
+        this.baseAngle = angle;
+        this.size = size;
+        this.unfurl = 0;
+        this.spring = new Spring(0, 0.15, 0.85);
+        this.windOffset = Math.random() * Math.PI * 2;
+
+        this.path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        this.path.setAttribute('class', 'leaf');
+        const grad = document.createElementNS('http://www.w3.org/2000/svg', 'radialGradient');
+        grad.id = `leafGrad${Math.random().toString(36).substr(2, 9)}`;
+        grad.innerHTML = '<stop offset="0%" stop-color="#6cbd45"/><stop offset="100%" stop-color="#2d5a27"/>';
+        document.querySelector('defs').appendChild(grad);
+        this.path.setAttribute('fill', `url(#${grad.id})`);
+        svg.appendChild(this.path);
+      }
+
+      update(stemEndX, stemEndY, wind, growth) {
+        const unfurlTarget = Math.min(1, growth);
+        this.spring.update(unfurlTarget);
+        this.unfurl = this.spring.value;
+
+        const windEffect = Math.sin(Date.now() * 0.002 + this.windOffset) * wind;
+        const angle = this.baseAngle + windEffect * 20 * this.unfurl;
+
+        const spread = 30 * this.unfurl;
+        const tipX = stemEndX + Math.cos((angle - 90) * Math.PI / 180) * this.size * this.unfurl;
+        const tipY = stemEndY + Math.sin((angle - 90) * Math.PI / 180) * this.size * this.unfurl;
+        const ctrl1X = stemEndX + Math.cos((angle - 90 - spread) * Math.PI / 180) * this.size * 0.5 * this.unfurl;
+        const ctrl1Y = stemEndY + Math.sin((angle - 90 - spread) * Math.PI / 180) * this.size * 0.5 * this.unfurl;
+        const ctrl2X = stemEndX + Math.cos((angle - 90 + spread) * Math.PI / 180) * this.size * 0.5 * this.unfurl;
+        const ctrl2Y = stemEndY + Math.sin((angle - 90 + spread) * Math.PI / 180) * this.size * 0.5 * this.unfurl;
+
+        const d = `M ${stemEndX} ${stemEndY} Q ${ctrl1X} ${ctrl1Y} ${tipX} ${tipY} Q ${ctrl2X} ${ctrl2Y} ${stemEndX} ${stemEndY}`;
+        this.path.setAttribute('d', d);
+        this.path.style.opacity = this.unfurl;
+      }
+    }
+
+    class Plant {
+      constructor() {
+        this.height = 0;
+        this.maxHeight = 380;
+        this.stemPoints = [{ x: centerX, y: groundY }];
+        this.heightSpring = new Spring(0, 0.02, 0.95);
+        this.phase = 'growing';
+        this.loopCount = 0;
+        this.leaves = [];
+
+        this.stemPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        this.stemPath.setAttribute('class', 'stem');
+        this.stemPath.setAttribute('stroke', 'url(#stemGrad)');
+        svg.insertBefore(this.stemPath, svg.firstChild);
+      }
+
+      update(time) {
+        const wind = Math.sin(time * 0.001) * 0.5 + 0.5;
+
+        if (this.phase === 'growing') {
+          this.heightSpring.update(this.maxHeight);
+          this.height = this.heightSpring.value;
+
+          if (this.height >= this.maxHeight * 0.98) {
+            this.phase = 'full';
+          }
+        } else if (this.phase === 'full') {
+          if (this.heightSpring.value < this.maxHeight * 0.1) {
+            this.phase = 'resetting';
+          } else {
+            this.heightSpring.update(0);
+            this.height = this.heightSpring.value;
+          }
+        } else if (this.phase === 'resetting') {
+          if (this.heightSpring.value < 1) {
+            this.phase = 'growing';
+            this.loopCount++;
+            this.stemPoints = [{ x: centerX, y: groundY }];
+            this.leaves = [];
+          } else {
+            this.heightSpring.update(0);
+            this.height = this.heightSpring.value;
+          }
+        }
+
+        const segments = 20;
+        this.stemPoints = [{ x: centerX, y: groundY }];
+        for (let i = 1; i <= segments; i++) {
+          const t = i / segments;
+          const baseX = centerX + (Math.sin(t * Math.PI * 2) * 15 * t);
+          const windSway = Math.sin(time * 0.003 + i * 0.3) * 8 * t * wind;
+          this.stemPoints.push({
+            x: baseX + windSway,
+            y: groundY - this.height * t
+          });
+        }
+
+        let d = `M ${this.stemPoints[0].x} ${this.stemPoints[0].y}`;
+        for (let i = 1; i < this.stemPoints.length; i++) {
+          const p0 = this.stemPoints[i - 1];
+          const p1 = this.stemPoints[i];
+          const cpX = (p0.x + p1.x) / 2;
+          const cpY = (p0.y + p1.y) / 2;
+          d += ` Q ${p0.x} ${p0.y} ${cpX} ${cpY}`;
+        }
+        this.stemPath.setAttribute('d', d);
+
+        const stemEnd = this.stemPoints[this.stemPoints.length - 1];
+        const growthProgress = this.height / this.maxHeight;
+
+        if (this.phase === 'growing') {
+          LEAVES.forEach((leafConfig, index) => {
+            if (growthProgress >= leafConfig.timing / 4500 && !this.leaves[index]) {
+              this.leaves[index] = new Leaf(stemEnd.x, stemEnd.y, leafConfig.angle, leafConfig.size);
+            }
+          });
+        }
+
+        this.leaves.forEach(leaf => {
+          if (leaf) {
+            leaf.update(stemEnd.x, stemEnd.y, wind, growthProgress);
+          }
+        });
+
+        if (this.phase === 'growing' && growthProgress >= 0.95) {
+          setTimeout(() => {
+            this.phase = 'shrinking';
+          }, 2000);
+        }
+        if (this.phase === 'shrinking') {
+          this.heightSpring.update(0);
+          this.height = this.heightSpring.value;
+          if (this.height < 1) {
+            this.phase = 'growing';
+            this.loopCount++;
+            this.stemPoints = [{ x: centerX, y: groundY }];
+            this.leaves.forEach(l => l && l.path.remove());
+            this.leaves = [];
+          }
+        }
+      }
+    }
+
+    const plant = new Plant();
+    function animate(time) {
+      plant.update(time);
+      requestAnimationFrame(animate);
+    }
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>

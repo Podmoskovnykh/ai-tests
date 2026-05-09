@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Plant Growing SVG Simulation</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #e8f6f3;
+    }
+    #scene {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <svg id="scene" xmlns="http://www.w3.org/2000/svg"></svg>
+
+  <script>
+    (function () {
+      const svgNS = "http://www.w3.org/2000/svg";
+      const scene = document.getElementById("scene");
+      let width, height;
+      let stemPath, leafGroup;
+
+      // central control parameters
+      const stemMaxLen = 400;          // total stem length at full growth
+      const growSpeed = 0.5;           // vertical growth per frame
+      const unfurlSpeed = 0.02;        // leaf growth speed per frame
+      const swayAmt = 12;            // max wind sway in degrees
+      const swaySpeed = 0.003;         // wind cycle speed
+      const resetDelay = 180;        // frames to stay at full size before restarting
+      
+      // state
+      let t = 0;                       // frame counter
+      let stemLen = 0;                 // current stem length
+      let fullGrown = false;
+      let resetTimer = 0;
+
+      // leaf definitions with relative positions
+      // 1.0 = stem top, so pos decreases (by design) a bit below top
+      const leaves = [
+        { pos: 0.3, side: -1, size: 0, maxSize: 22, r: 0 },
+        { pos: 0.5, side: 1,  size: 0, maxSize: 30, r: 0 },
+        { pos: 0.7, side: -1, size: 0, maxSize: 26, r: 0 },
+        { pos: 0.85, side: 1, size: 0, maxSize: 20, r: 0 },
+      ];
+
+      function resize() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        scene.setAttribute("viewBox", `0 0 ${width} ${height}`);
+      }
+
+      function init() {
+        resize();
+        window.addEventListener("resize", resize);
+
+        // gradient background rectangle
+        const bg = document.createElementNS(svgNS, "rect");
+        bg.setAttribute("width", "100%");
+        bg.setAttribute("height", "100%");
+        bg.setAttribute("fill", "url(#skyGrad)");
+
+        const defs = document.createElementNS(svgNS, "defs");
+        const skyGrad = document.createElementNS(svgNS, "linearGradient");
+        skyGrad.id = "skyGrad";
+        skyGrad.setAttribute("x1", "0");
+        skyGrad.setAttribute("y1", "0");
+        skyGrad.setAttribute("x2", "0");
+        skyGrad.setAttribute("y2", "1");
+        skyGrad.innerHTML = `
+          <stop offset="0%" stop-color="#a2d9f7"/>
+          <stop offset="100%" stop-color="#e8f6f3"/>
+        `;
+        defs.appendChild(skyGrad);
+        scene.appendChild(defs);
+
+        // ground
+        const ground = document.createElementNS(svgNS, "rect");
+        ground.setAttribute("x", 0);
+        ground.setAttribute("y", height - 40);
+        ground.setAttribute("width", width);
+        ground.setAttribute("height", 40);
+        ground.setAttribute("fill", "#7dce58");
+        scene.appendChild(ground);
+
+        // stem path (thin, gradually lengthens)
+        stemPath = document.createElementNS(svgNS, "path");
+        stemPath.setAttribute("fill", "none");
+        stemPath.setAttribute("stroke", "#4caf50");
+        stemPath.setAttribute("stroke-width", "4");
+        stemPath.setAttribute("stroke-linecap", "round");
+        scene.appendChild(stemPath);
+
+        // leaf group
+        leafGroup = document.createElementNS(svgNS, "g");
+        scene.appendChild(leafGroup);
+
+        // create leaf SVG elements for each leaf object
+        leaves.forEach(l => {
+          const el = document.createElementNS(svgNS, "path");
+          el.setAttribute("fill", "#4caf50");
+          el.setAttribute("stroke", "#2e7d32");
+          el.setAttribute("stroke-width", "1");
+          leafGroup.appendChild(el);
+          l.el = el;
+        });
+
+        requestAnimationFrame(animate);
+      }
+
+      // cubic bezier easing for springiness: back easing
+      function easeOutBack(x) {
+        const c1 = 1.70158;
+        const c3 = c1 + 1;
+        return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+      }
+
+      // compute wind sway angle (degrees) for a given frame time
+      function getWindAngle(time) {
+        return Math.sin(time * swaySpeed) * swayAmt;
+      }
+
+      // animate a single frame
+      function animate() {
+        t += 1;
+
+        if (!fullGrown) {
+          stemLen += growSpeed;
+          if (stemLen >= stemMaxLen) {
+            stemLen = stemMaxLen;
+            fullGrown = true;
+          }
+        } else {
+          resetTimer += 1;
+          if (resetTimer > resetDelay) {
+            // reset simulation
+            stemLen = 0;
+            fullGrown = false;
+            resetTimer = 0;
+            leaves.forEach(l => { l.size = 0; });
+          }
+        }
+
+        const baseX = width / 2;
+        const baseY = height - 40;
+
+        // sway at the top
+        const wind = getWindAngle(t);
+        const topX = baseX + Math.sin(wind * Math.PI / 180) * stemMaxLen * 0.3;
+        const topY = baseY - stemLen;
+
+        // Update stem as quadratic bezier: base -> control -> top
+        const cX = (baseX + topX) / 2 + wind * 2; // control slight offset
+        const cY = (baseY + topY) / 2;
+        const d = `M ${baseX} ${baseY} Q ${cX} ${cY} ${topX} ${topY}`;
+        stemPath.setAttribute("d", d);
+
+        // update leaves
+        let allFull = true;
+        leaves.forEach((leaf, i) => {
+          // leaf appears when stem is above it
+          const leafY = baseY - stemLen * leaf.pos;
+          if (stemLen > stemMaxLen * leaf.pos) {
+            if (leaf.size < leaf.maxSize) {
+              leaf.size += unfurlSpeed * (leaf.maxSize - leaf.size) + 0.1;
+              if (leaf.size > leaf.maxSize) leaf.size = leaf.maxSize;
+            }
+          }
+          if (leaf.size < leaf.maxSize) allFull = false;
+
+          const progress = Math.min(1, leaf.size / leaf.maxSize);
+          const eased = easeOutBack(progress);
+          // compute placement position along curved stem
+          // simplified: lerp along quadratic bezier for y approx
+          // just using bezier point formula with t = leaf.pos
+          const ti = 1 - leaf.pos; // invert because leaf.pos is fraction down
+          const bx = (1 - ti) * (1 - ti) * baseX + 2 * (1 - ti) * ti * cX + ti * ti * topX;
+          const by = (1 - ti) * (1 - ti) * baseY + 2 * (1 - ti) * ti * cY + ti * ti * topY;
+
+          // leaf sway (springy / windy)
+          // each leaf sways at its own frequency
+          const leafSway = Math.sin(t * 0.05 + i) * 5 * (1 + (1 - progress));
+          const angle = wind * 0.3 + leafSway + (leaf.side * 20 * (1 - eased));
+
+          // Draw simple elliptical leaf
+          // rotate and scale from center
+          const rx = leaf.size;
+          const ry = leaf.size * 0.5;
+          if (rx <= 0 || ry <= 0) {
+            leaf.el.setAttribute("d", "");
+            return;
+          }
+          // draw as a rotated ellipse approximated by path
+          // compute points on rotated ellipse
+          const steps = 6;
+          let pathStr = "";
+          for (let s = 0; s <= steps; s++) {
+            const ang = (s / steps) * Math.PI * 2;
+            const x = Math.cos(ang) * rx;
+            const y = Math.sin(ang) * ry;
+            const rad = angle * Math.PI / 180;
+            const xr = x * Math.cos(rad) - y * Math.sin(rad);
+            const yr = x * Math.sin(rad) + y * Math.cos(rad);
+            const px = bx + xr + (leaf.side * leaf.size * 0.2);
+            const py = by + yr;
+            pathStr += (s === 0 ? "M" : "L") + ` ${px.toFixed(2)} ${py.toFixed(2)}`;
+          }
+          pathStr += " Z";
+          leaf.el.setAttribute("d", pathStr);
+        });
+
+        if (fullGrown && allFull && resetTimer === 0) {
+          resetTimer = 1;
+        }
+
+        requestAnimationFrame(animate);
+      }
+
+      init();
+    })();
+  </script>
+</body>
+</html>

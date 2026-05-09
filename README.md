@@ -22,8 +22,7 @@
 | `gps-oss-120b` | Nvidia | svg | 20s | ~50.000 |
 | `glm-4.5-air` | Openrouter | svg | 2m 35s | ~16.000 |
 | `deepseek-v4-flash` | Polza.ai | svg | 2m 11s | ~63.000 |
-
-
+| `qwen3.5-flash` | Polza.ai | svg | 26s | ~44.000 |
 
 
 

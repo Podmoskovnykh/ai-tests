@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Growing Plant Simulation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(to bottom, #87CEEB 0%, #87CEEB 70%, #228B22 70%, #228B22 100%);
+            overflow: hidden;
+        }
+        svg {
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <svg id="plant-svg" viewBox="0 0 800 600" preserveAspectRatio="xMidYMax meet"></svg>
+
+    <script>
+        const svg = document.getElementById('plant-svg');
+        const centerX = 400;
+        const groundY = 420;
+        const maxStemHeight = 200;
+        const loopDuration = 8000;
+        const growDuration = 3000;
+        const windSpeed = 0.002;
+        const windAmplitude = 15;
+
+        let time = 0;
+        let stemHeight = 0;
+        let leafAngles = [];
+        let leafSizes = [];
+        let leafPositions = [];
+
+        function initLeaves() {
+            leafAngles = [];
+            leafSizes = [];
+            leafPositions = [];
+            for (let i = 0; i < 6; i++) {
+                leafAngles.push(0);
+                leafSizes.push(0);
+                leafPositions.push({ targetX: 0, targetY: 0, x: 0, y: 0 });
+            }
+        }
+
+        function createStem() {
+            const stem = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            stem.id = 'stem';
+            stem.style.fill = 'none';
+            stem.style.stroke = 'url(#stemGradient)';
+            stem.style.strokeWidth = '8';
+            stem.style.strokeLinecap = 'round';
+            stem.style.filter = 'drop-shadow(2px 2px 3px rgba(0,0,0,0.3))';
+            svg.insertBefore(stem, svg.firstChild);
+        }
+
+        function createGradient() {
+            const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            const gradient = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+            gradient.id = 'stemGradient';
+            gradient.setAttribute('x1', '0%');
+            gradient.setAttribute('y1', '0%');
+            gradient.setAttribute('x2', '0%');
+            gradient.setAttribute('y2', '100%');
+
+            const stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+            stop1.setAttribute('offset', '0%');
+            stop1.setAttribute('stop-color', '#228B22');
+
+            const stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+            stop2.setAttribute('offset', '100%');
+            stop2.setAttribute('stop-color', '#32CD32');
+
+            gradient.appendChild(stop1);
+            gradient.appendChild(stop2);
+            defs.appendChild(gradient);
+            svg.insertBefore(defs, svg.firstChild);
+        }
+
+        function createLeaf(index) {
+            const leaf = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            leaf.id = `leaf-${index}`;
+            leaf.style.fill = 'url(#leafGradient)';
+            leaf.style.filter = 'drop-shadow(1px 1px 2px rgba(0,0,0,0.2))';
+            svg.insertBefore(leaf, svg.firstChild);
+        }
+
+        function createLeafGradient() {
+            const defs = document.getElementById('leafGradient');
+            if (!defs) {
+                const newDefs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+                const gradient = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+                gradient.id = 'leafGradient';
+                gradient.setAttribute('x1', '0%');
+                gradient.setAttribute('y1', '0%');
+                gradient.setAttribute('x2', '100%');
+                gradient.setAttribute('y2', '100%');
+
+                const stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+                stop1.setAttribute('offset', '0%');
+                stop1.setAttribute('stop-color', '#90EE90');
+
+                const stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+                stop2.setAttribute('offset', '100%');
+                stop2.setAttribute('stop-color', '#228B22');
+
+                gradient.appendChild(stop1);
+                gradient.appendChild(stop2);
+                newDefs.appendChild(gradient);
+                svg.insertBefore(newDefs, svg.firstChild);
+            }
+        }
+
+        function createFlower() {
+            const flower = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            flower.id = 'flower';
+            flower.style.filter = 'drop-shadow(2px 2px 3px rgba(0,0,0,0.3))';
+            svg.insertBefore(flower, svg.firstChild);
+        }
+
+        function createPetal(index, total) {
+            const petal = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+            petal.id = `petal-${index}`;
+            petal.style.fill = `hsl(${(index / total) * 360}, 70%, 60%)`;
+            petal.style.stroke = '#8B4513';
+            petal.style.strokeWidth = '1';
+            return petal;
+        }
+
+        function createCenter() {
+            const center = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            center.id = 'flower-center';
+            center.style.fill = '#FFD700';
+            center.style.stroke = '#DAA520';
+            center.style.strokeWidth = '1';
+            return center;
+        }
+
+        function createWindLines() {
+            for (let i = 0; i < 5; i++) {
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                line.id = `wind-${i}`;
+                line.style.fill = 'none';
+                line.style.stroke = 'rgba(255,255,255,0.4)';
+                line.style.strokeWidth = '2';
+                line.style.strokeLinecap = 'round';
+                svg.insertBefore(line, svg.firstChild);
+            }
+        }
+
+        function getLeafShape() {
+            return 'M 0 0 Q 5 -10 15 -5 Q 25 -10 30 0 Q 25 10 15 5 Q 5 10 0 0';
+        }
+
+        function updateStem() {
+            const progress = Math.min(stemHeight / maxStemHeight, 1);
+            const y1 = groundY;
+            const y2 = groundY - stemHeight;
+
+            const curveControlY = y2 + Math.sin(time * windSpeed * 2) * 20;
+            const pathD = `M ${centerX} ${y1} Q ${centerX + Math.sin(time * windSpeed) * 10} ${curveControlY} ${centerX} ${y2}`;
+            document.getElementById('stem').setAttribute('d', pathD);
+        }
+
+        function updateLeaves() {
+            const wind = Math.sin(time * windSpeed) * windAmplitude;
+            const stemProgress = Math.min(stemHeight / maxStemHeight, 1);
+
+            leafPositions.forEach((pos, i) => {
+                const leafY = groundY - (stemHeight * (0.3 + i * 0.12)) - (leafSizes[i] * 10);
+                const leafXBase = centerX + Math.sin(time * windSpeed) * 5 * (i % 2 === 0 ? 1 : -1);
+
+                pos.targetX = leafXBase + (50 + leafSizes[i] * 20) * Math.cos(leafAngles[i] + (i % 2 === 0 ? 0 : Math.PI));
+                pos.targetY = leafY + (50 + leafSizes[i] * 20) * Math.sin(leafAngles[i] + (i % 2 === 0 ? 0 : Math.PI));
+
+                const springFactor = 0.05 + (i * 0.01);
+                pos.x += (pos.targetX - pos.x) * springFactor;
+                pos.y += (pos.targetY - pos.y) * springFactor;
+
+                const leaf = document.getElementById(`leaf-${i}`);
+                leaf.setAttribute('d', getLeafShape());
+                leaf.setAttribute('transform', `translate(${pos.x}, ${pos.y}) scale(${0.3 + leafSizes[i]}) rotate(${leafAngles[i] * 180 / Math.PI + wind * (i % 2 === 0 ? 1 : -1)})`);
+            });
+        }
+
+        function updateFlower() {
+            const stemProgress = Math.min(stemHeight / maxStemHeight, 1);
+            if (stemProgress < 1) return;
+
+            const flowerGroup = document.getElementById('flower');
+            const wind = Math.sin(time * windSpeed) * 10;
+
+            for (let i = 0; i < 8; i++) {
+                const petal = document.getElementById(`petal-${i}`);
+                const angle = (i / 8) * Math.PI * 2 + time * 0.001;
+                const radius = 15 + Math.sin(time * 0.003 + i) * 5;
+                petal.setAttribute('cx', centerX + Math.cos(angle) * radius);
+                petal.setAttribute('cy', groundY - stemHeight - 25 + Math.sin(angle) * 5);
+                petal.setAttribute('rx', 12 + leafSizes[5] * 5);
+                petal.setAttribute('ry', 8 + leafSizes[5] * 3);
+                petal.setAttribute('transform', `rotate(${angle * 180 / Math.PI + wind * 0.5}, ${centerX + Math.cos(angle) * radius}, ${groundY - stemHeight - 25})`);
+            }
+
+            const center = document.getElementById('flower-center');
+            center.setAttribute('cx', centerX);
+            center.setAttribute('cy', groundY - stemHeight - 25);
+            center.setAttribute('r', 10 + leafSizes[5] * 2);
+        }
+
+        function updateWindLines() {
+            for (let i = 0; i < 5; i++) {
+                const line = document.getElementById(`wind-${i}`);
+                const y = 100 + i * 80;
+                const wave = Math.sin(time * windSpeed * 2 + i) * 10;
+                const pathD = `M 0 ${y} Q 100 ${y + wave} 200 ${y} T 400 ${y + wave} T 600 ${y} T 800 ${y + wave}`;
+                line.setAttribute('d', pathD);
+            }
+        }
+
+        function update() {
+            time++;
+            const loopProgress = (time % loopDuration) / loopDuration;
+
+            if (loopProgress < growDuration / loopDuration) {
+                const growProgress = loopProgress / (growDuration / loopDuration);
+                const easedProgress = 1 - Math.pow(1 - growProgress, 3);
+                stemHeight = maxStemHeight * easedProgress;
+
+                leafSizes.forEach((size, i) => {
+                    const leafGrowStart = 0.2 + i * 0.1;
+                    if (growProgress > leafGrowStart) {
+                        const leafGrowProgress = Math.min((growProgress - leafGrowStart) / 0.3, 1);
+                        leafSizes[i] = leafGrowProgress;
+                    }
+                });
+
+                leafAngles.forEach((_, i) => {
+                    const leafGrowStart = 0.2 + i * 0.1;
+                    if (growProgress > leafGrowStart) {
+                        const leafGrowProgress = Math.min((growProgress - leafGrowStart) / 0.3, 1);
+                        leafAngles[i] = leafGrowProgress * Math.PI * 0.3 * (i % 2 === 0 ? 1 : -1);
+                    }
+                });
+            } else {
+                stemHeight = maxStemHeight;
+                leafSizes = leafSizes.map((_, i) => 1);
+                leafAngles = leafAngles.map((_, i) => Math.PI * 0.3 * (i % 2 === 0 ? 1 : -1));
+            }
+
+            updateStem();
+            updateLeaves();
+            updateFlower();
+            updateWindLines();
+        }
+
+        function animate() {
+            update();
+            requestAnimationFrame(animate);
+        }
+
+        function init() {
+            createGradient();
+            createStem();
+            createLeafGradient();
+            initLeaves();
+            for (let i = 0; i < 6; i++) {
+                createLeaf(i);
+            }
+            createFlower();
+            for (let i = 0; i < 8; i++) {
+                const petal = createPetal(i, 8);
+                document.getElementById('flower').appendChild(petal);
+            }
+            document.getElementById('flower').appendChild(createCenter());
+            createWindLines();
+            animate();
+        }
+
+        init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Growing Plant SVG Demo</title>
+<style>
+  body { margin:0; display:flex; height:100vh; align-items:center; justify-content:center; background:#1a2f1a; }
+  svg { width:600px; height:600px; background:#112211; border-radius:8px; box-shadow:0 0 20px rgba(0,0,0,0.6); }
+</style>
+</head>
+<body>
+<svg id="plant" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg">
+  <!-- Ground -->
+  <rect x="0" y="520" width="600" height="80" fill="#3a2f1a"/>
+  <!-- Pot -->
+  <rect x="240" y="480" width="120" height="60" fill="#8b5a2b"/>
+  <rect x="230" y="475" width="140" height="12" fill="#6b4422"/>
+
+  <!-- Stem group -->
+  <g id="stem-group">
+    <path id="stem" fill="none" stroke="#2e7d3a" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/>
+  </g>
+
+  <!-- Leaves container -->
+  <g id="leaves"></g>
+</svg>
+
+<script>
+const svg = document.getElementById('plant');
+const stem = document.getElementById('stem');
+const leavesContainer = document.getElementById('leaves');
+
+// Animation constants
+const CYCLE = 8000; // ms per full growth loop
+const MAX_STEM = 260;
+const BASE_X = 300;
+const BASE_Y = 520;
+
+// Leaf definition (symmetrical leaf shape path, origin at base)
+function leafPath(scale, open) {
+  const w = 22 * scale;
+  const h = 52 * scale * open;
+  return `M0,0 Q${w},-${h*0.3} ${w*0.1},-${h} Q0,-${h*1.15} -${w*0.1},-${h} Q-${w},-${h*0.3} 0,0`;
+}
+
+let leafDefs = [
+  { y: 280, side: -1, delay: 0.15 },
+  { y: 280, side:  1, delay: 0.18 },
+  { y: 360, side: -1, delay: 0.40 },
+  { y: 360, side:  1, delay: 0.43 },
+  { y: 420, side: -1, delay: 0.65 },
+  { y: 420, side:  1, delay: 0.68 }
+];
+
+let leafElements = [];
+
+function createLeaves() {
+  leavesContainer.innerHTML = '';
+  leafElements = [];
+  leafDefs.forEach((def, i) => {
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute('fill', '#3db35b');
+    path.setAttribute('stroke', '#2e7d3a');
+    path.setAttribute('stroke-width', '1.5');
+    g.appendChild(path);
+    leavesContainer.appendChild(g);
+    leafElements.push({ g, path, def, i });
+  });
+}
+
+function animate() {
+  const t = Date.now() % CYCLE;
+  const progress = t / CYCLE;
+
+  // Wind (springy sway)
+  const wind = Math.sin(t * 0.0028) * 4.2 + Math.sin(t * 0.0088) * 2.1;
+
+  // Grow stem
+  const stemHeight = Math.min(MAX_STEM, progress * MAX_STEM * 1.1);
+  const sway = wind * 0.06;
+  const p = `M${BASE_X}, ${BASE_Y} Q${BASE_X + sway * 6},${BASE_Y - stemHeight * 0.45} ${BASE_X + sway},${BASE_Y - stemHeight}`;
+  stem.setAttribute('d', p);
+
+  // Update leaves
+  leafElements.forEach(({ g, path, def }) => {
+    const leafStart = def.delay;
+    let lp = Math.max(0, Math.min(1, (progress - leafStart) / 0.35));
+    // Ease
+    lp = lp * lp * (3 - 2 * lp);
+
+    const scale = lp * 1.0;
+    const open = 0.2 + lp * 0.85;      // unfurl amount
+    const leafSway = wind * (1.1 - lp * 0.4); // young leaves move more
+
+    const ax = BASE_X;
+    const ay = def.y;
+
+    // Leaf rotation around base
+    const rot = def.side * (lp * 42 + leafSway * (def.side > 0 ? 1.8 : -1.0));
+
+    g.setAttribute('transform', `translate(${ax}, ${ay}) rotate(${rot})`);
+
+    path.setAttribute('d', leafPath(scale, open));
+  });
+
+  requestAnimationFrame(animate);
+}
+
+createLeaves();
+animate();
+</script>
+</body>
+</html>

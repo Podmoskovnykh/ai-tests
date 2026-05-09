@@ -23,6 +23,8 @@
 | `glm-4.5-air` | Openrouter | svg | 2m 35s | ~16.000 |
 | `deepseek-v4-flash` | Polza.ai | svg | 2m 11s | ~63.000 |
 | `qwen3.5-flash` | Polza.ai | svg | 26s | ~44.000 |
+| `grok-4.3` | Polza.ai | svg | 31s | ~28.000 |
+| `gemini-3.1-flash-lite` | Polza.ai | svg | 19s | ~42.000 |
 
 
 

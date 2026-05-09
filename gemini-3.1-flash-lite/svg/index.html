@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Growing Plant</title>
+    <style>
+        body { margin: 0; background: #f0f8ff; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+        svg { width: 400px; height: 600px; }
+    </style>
+</head>
+<body>
+    <svg viewBox="0 0 400 600">
+        <path id="stem" d="M 200 550 C 200 550, 200 550, 200 550" stroke="#2e8b57" stroke-width="6" fill="none" />
+        <g id="leaves"></g>
+    </svg>
+
+    <script>
+        const stem = document.getElementById('stem');
+        const leaves = document.getElementById('leaves');
+        let time = 0;
+
+        function update() {
+            time += 0.01;
+            const height = Math.min(400, time * 100);
+            stem.setAttribute('d', `M 200 550 C 200 ${550 - height/2}, 200 ${550 - height/2}, 200 ${550 - height}`);
+            
+            if (time > 1 && time % 2 < 0.05) {
+                const leaf = document.createElementNS("http://www.w3.org/2000/svg", "ellipse");
+                leaf.setAttribute("cx", 200);
+                leaf.setAttribute("cy", 550 - height);
+                leaf.setAttribute("rx", 0);
+                leaf.setAttribute("ry", 0);
+                leaf.setAttribute("fill", "#32cd32");
+                leaves.appendChild(leaf);
+            }
+
+            Array.from(leaves.children).forEach((leaf, i) => {
+                const growth = Math.min(1, (time - 1 - i * 2) * 0.5);
+                if (growth > 0) {
+                    leaf.setAttribute("rx", growth * 30);
+                    leaf.setAttribute("ry", growth * 10);
+                    leaf.setAttribute("transform", `rotate(${Math.sin(time * 2 + i) * 10}, 200, ${550 - (i+1)*80})`);
+                }
+            });
+
+            if (time > 10) time = 0;
+            requestAnimationFrame(update);
+        }
+        update();
+    </script>
+</body>
+</html>

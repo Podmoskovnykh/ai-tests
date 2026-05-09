@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SVG Plant Growth Demo</title>
+  <style>
+    body { margin:0; display:flex; justify-content:center; align-items:center; height:100vh; background:#e0f7fa; }
+    svg { overflow:visible; }
+    .stem { stroke:#2e7d32; stroke-width:4; stroke-linecap:round; }
+    .leaf { fill:#66bb6a; transform-origin:center; }
+    @keyframes growStem {
+      from { stroke-dasharray:0 200; }
+      to   { stroke-dasharray:200 0; }
+    }
+    @keyframes leafGrow {
+      0% { transform:scale(0) rotate(0deg); opacity:0; }
+      70% { transform:scale(1.2) rotate(10deg); opacity:1; }
+      100% { transform:scale(1) rotate(0deg); }
+    }
+    @keyframes sway {
+      0%,100% { transform:rotate(0deg); }
+      50% { transform:rotate(2deg); }
+    }
+  </style>
+</head>
+<body>
+  <svg width="200" height="400" viewBox="0 0 200 400">
+    <!-- Stem: start at bottom (y=350) going up to y=150 -->
+    <line class="stem" x1="100" y1="350" x2="100" y2="150" stroke-dasharray="200" stroke-dashoffset="200" />
+    <!-- Leaves (will appear as stem grows) -->
+    <g class="leaves" opacity="0">
+      <!-- Left leaf -->
+      <path class="leaf" d="M100,250 C70,240 70,210 100,200" />
+      <!-- Right leaf -->
+      <path class="leaf" d="M100,250 C130,240 130,210 100,200" />
+      <!-- Upper left leaf -->
+      <path class="leaf" d="M100,190 C70,180 70,150 100,140" />
+      <!-- Upper right leaf -->
+      <path class="leaf" d="M100,190 C130,180 130,150 100,140" />
+    </g>
+  </svg>
+  <script>
+    const stem = document.querySelector('.stem');
+    const leaves = document.querySelector('.leaves');
+    function startAnimation(){
+      // Stem grows
+      stem.style.animation = 'growStem 3s forwards';
+      // After stem finished, reveal leaves
+      setTimeout(()=>{
+        leaves.style.opacity = '1';
+        const leafElems = leaves.querySelectorAll('.leaf');
+        leafElems.forEach((leaf,i)=>{
+          leaf.style.animation = `leafGrow 2s ${i*0.3}s forwards, sway 4s ${i*0.3 + 2}s infinite alternate ease-in-out`;
+        });
+        // Loop after full cycle
+        setTimeout(startAnimation, 12000);
+      },3000);
+    }
+    startAnimation();
+  </script>
+</body>
+</html>

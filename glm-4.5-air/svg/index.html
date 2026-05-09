@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVG Plant Growing Animation</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(to bottom, #87CEEB 0%, #98FB98 100%);
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+        
+        #plant-container {
+            width: 100%;
+            height: 100vh;
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+    <div id="plant-container">
+        <svg id="plant" width="100%" height="100%" viewBox="0 0 800 600">
+            <!-- Ground -->
+            <rect x="0" y="500" width="800" height="100" fill="#8B4513" />
+            
+            <!-- Stem -->
+            <path id="stem" stroke="#228B22" stroke-width="8" fill="none" d="M 400 500" />
+            
+            <!-- Leaves container -->
+            <g id="leaves"></g>
+        </svg>
+    </div>
+
+    <script>
+        const svg = document.getElementById('plant');
+        const stem = document.getElementById('stem');
+        const leavesContainer = document.getElementById('leaves');
+        
+        let currentStemLength = 0;
+        let targetStemLength = 300;
+        let stemGrowthSpeed = 2;
+        
+        // Leaf positions along the stem (0 = bottom, 1 = top)
+        const leafPositions = [0.2, 0.35, 0.5, 0.65, 0.8, 0.9];
+        const leaves = [];
+        
+        // Physics simulation variables
+        let windForce = 0;
+        let windTarget = 0;
+        let time = 0;
+        
+        class Leaf {
+            constructor(position) {
+                this.position = position; // Position along stem (0-1)
+                this.angle = (Math.random() - 0.5) * 60; // Random initial angle
+                this.size = 0;
+                this.targetSize = 15 + Math.random() * 10;
+                this.unfurlProgress = 0;
+                this.windOffset = Math.random() * Math.PI * 2;
+                this.naturalAngle = this.angle;
+                this.element = this.createElement();
+            }
+            
+            createElement() {
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                g.setAttribute('transform-origin', '0 0');
+                
+                // Leaf shape (simple ellipse)
+                const leaf = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+                leaf.setAttribute('cx', '0');
+                leaf.setAttribute('cy', '0');
+                leaf.setAttribute('rx', '0');
+                leaf.setAttribute('ry', '0');
+                leaf.setAttribute('fill', '#32CD32');
+                leaf.setAttribute('opacity', '0.8');
+                
+                g.appendChild(leaf);
+                leavesContainer.appendChild(g);
+                
+                return g;
+            }
+            
+            update(stemLength, windForce) {
+                // Calculate stem position at this leaf's height
+                const stemY = 500 - (stemLength * this.position);
+                const stemX = 400 + Math.sin(time * 0.001 + this.windOffset) * windForce * 10;
+                
+                // Update size (unfurling animation)
+                if (this.unfurlProgress < 1) {
+                    this.unfurlProgress += 0.02;
+                    this.size = this.targetSize * this.easeOutCubic(this.unfurlProgress);
+                }
+                
+                // Calculate angle with wind effect
+                const windEffect = windForce * 20 * Math.sin(time * 0.002 + this.windOffset);
+                this.angle = this.naturalAngle + windEffect;
+                
+                // Update element transform
+                this.element.setAttribute('transform', 
+                    `translate(${stemX}, ${stemY}) rotate(${this.angle})`
+                );
+                
+                // Update leaf shape
+                const leaf = this.element.querySelector('ellipse');
+                leaf.setAttribute('rx', this.size);
+                leaf.setAttribute('ry', this.size * 0.6);
+            }
+            
+            easeOutCubic(t) {
+                return 1 - Math.pow(1 - t, 3);
+            }
+        }
+        
+        // Create leaves
+        leafPositions.forEach(position => {
+            leaves.push(new Leaf(position));
+        });
+        
+        function updateStem() {
+            if (currentStemLength < targetStemLength) {
+                currentStemLength += stemGrowthSpeed;
+                if (currentStemLength > targetStemLength) {
+                    currentStemLength = targetStemLength;
+                }
+            }
+            
+            // Create curved stem with natural sway
+            const sway = Math.sin(time * 0.001) * 10;
+            const stemPath = `M 400 500 Q ${400 + sway} ${500 - currentStemLength / 2} ${400 + sway * 2} ${500 - currentStemLength}`;
+            stem.setAttribute('d', stemPath);
+        }
+        
+        function updateWind() {
+            // Create realistic wind patterns
+            windTarget = Math.sin(time * 0.0007) * 0.5 + 
+                         Math.sin(time * 0.0013) * 0.3 + 
+                         Math.sin(time * 0.0021) * 0.2;
+            
+            // Smooth wind transitions
+            windForce += (windTarget - windForce) * 0.05;
+        }
+        
+        function animate() {
+            time++;
+            
+            updateStem();
+            updateWind();
+            
+            // Update all leaves
+            leaves.forEach(leaf => {
+                leaf.update(currentStemLength, windForce);
+            });
+            
+            // Reset for seamless loop
+            if (currentStemLength >= targetStemLength && time % 600 === 0) {
+                currentStemLength = 0;
+                time = 0;
+                
+                // Reset leaves
+                leaves.forEach(leaf => {
+                    leaf.unfurlProgress = 0;
+                    leaf.size = 0;
+                    leaf.naturalAngle = (Math.random() - 0.5) * 60;
+                });
+            }
+            
+            requestAnimationFrame(animate);
+        }
+        
+        // Start animation
+        animate();
+    </script>
+</body>
+</html>

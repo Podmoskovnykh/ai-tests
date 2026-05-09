@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Growing Plant</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: #e8f4f8;
+    overflow: hidden;
+  }
+  svg { width: 600px; height: 700px; }
+</style>
+</head>
+<body>
+<svg viewBox="0 0 600 700" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#b8d4e3"/>
+      <stop offset="100%" stop-color="#e8f4e1"/>
+    </linearGradient>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6b4226"/>
+      <stop offset="100%" stop-color="#4a2f1a"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#fff9c4"/>
+      <stop offset="100%" stop-color="#fff9c4" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="600" height="700" fill="url(#sky)"/>
+  <circle cx="480" cy="100" r="60" fill="url(#sun)"/>
+  <rect x="0" y="560" width="600" height="140" fill="url(#ground)" rx="3"/>
+  <path d="M 120 560 Q 125 540, 130 560 M 180 560 Q 183 545, 188 560 M 420 560 Q 425 535, 430 560 M 470 560 Q 473 545, 478 560" stroke="#5a8a3c" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <g id="plant">
+    <path id="stem" d="M 300 555 Q 340 460, 305 370 T 295 190 Q 290 140, 300 80" stroke="#3d6b35" stroke-width="6" fill="none" stroke-linecap="round"/>
+  </g>
+</svg>
+<script>
+(function () {
+  const svg = document.querySelector('svg');
+  const ns = 'http://www.w3.org/2000/svg';
+  const plant = document.getElementById('plant');
+  const stemEl = document.getElementById('stem');
+
+  const BASE = { x: 300, y: 555 };
+  const CYCLE = 12000;
+  const GROW_FRAC = 0.75;
+  const HOLD_FRAC = 0.85;
+
+  const fullLength = stemEl.getTotalLength();
+  stemEl.setAttribute('stroke-dasharray', fullLength);
+  stemEl.setAttribute('stroke-dashoffset', fullLength);
+
+  const leafDefs = [
+    { dist: 0.18, side:  1, angle: 50, len: 55, w: 16 },
+    { dist: 0.30, side: -1, angle:-42, len: 50, w: 15 },
+    { dist: 0.42, side:  1, angle: 46, len: 48, w: 14 },
+    { dist: 0.53, side: -1, angle:-38, len: 44, w: 13 },
+    { dist: 0.63, side:  1, angle: 42, len: 40, w: 12 },
+    { dist: 0.72, side: -1, angle:-35, len: 36, w: 11 },
+    { dist: 0.80, side:  1, angle: 38, len: 32, w: 10 },
+    { dist: 0.87, side: -1, angle:-30, len: 28, w: 9 },
+    { dist: 0.93, side:  1, angle: 30, len: 24, w: 8 },
+  ];
+
+  function leafPath(len, w) {
+    const hw = w / 2;
+    return `M 0 0 C ${-hw-4} ${len*0.15}, ${-hw-2} ${len*0.5}, 0 ${len} C ${hw+2} ${len*0.5}, ${hw+4} ${len*0.15}, 0 0`;
+  }
+
+  const leaves = leafDefs.map((def) => {
+    const group = document.createElementNS(ns, 'g');
+    const blade = document.createElementNS(ns, 'path');
+    blade.setAttribute('d', leafPath(def.len, def.w));
+    blade.setAttribute('fill', '#4a8c3f');
+    blade.setAttribute('stroke', '#3a7030');
+    blade.setAttribute('stroke-width', '0.5');
+    group.appendChild(blade);
+
+    const vein = document.createElementNS(ns, 'line');
+    vein.setAttribute('x1', '0');
+    vein.setAttribute('y1', '0');
+    vein.setAttribute('x2', '0');
+    vein.setAttribute('y2', String(def.len));
+    vein.setAttribute('stroke', '#3a7030');
+    vein.setAttribute('stroke-width', '0.8');
+    group.appendChild(vein);
+
+    plant.appendChild(group);
+
+    const emergeAt = def.dist * GROW_FRAC * 0.85;
+    return {
+      def,
+      emergeAt,
+      unfurl: 0,
+      vel: 0,
+      windPhase: Math.random() * Math.PI * 2,
+      group,
+      blade,
+      vein,
+    };
+  });
+
+  const petioles = leafDefs.map((def) => {
+    const line = document.createElementNS(ns, 'line');
+    line.setAttribute('stroke', '#3d6b35');
+    line.setAttribute('stroke-width', '2');
+    line.setAttribute('stroke-linecap', 'round');
+    plant.appendChild(line);
+    return line;
+  });
+
+  let prevTime = 0;
+
+  function spring(target, val, vel, stiffness, damping) {
+    const force = -stiffness * (val - target);
+    const damp = -damping * vel;
+    vel += (force + damp) * 0.016;
+    val += vel * 0.016;
+    return { val, vel };
+  }
+
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function smoothstep(t) { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); }
+
+  function getTangentAngle(dist) {
+    const d = Math.max(1, Math.min(dist, fullLength - 1));
+    const p1 = stemEl.getPointAtLength(d - 1);
+    const p2 = stemEl.getPointAtLength(d + 1);
+    return Math.atan2(p2.y - p1.y, p2.x - p1.x);
+  }
+
+  function tick(time) {
+    const dt = Math.min((time - prevTime) / 1000, 0.05);
+    prevTime = time;
+
+    const cycleT = (time % CYCLE) / CYCLE;
+    let growth;
+    if (cycleT < GROW_FRAC) {
+      growth = smoothstep(cycleT / GROW_FRAC);
+    } else if (cycleT < HOLD_FRAC) {
+      growth = 1;
+    } else {
+      growth = smoothstep(1 - (cycleT - HOLD_FRAC) / (1 - HOLD_FRAC));
+    }
+
+    const offset = fullLength * (1 - growth);
+    stemEl.setAttribute('stroke-dashoffset', offset);
+
+    const windTime = time / 1000;
+    const globalWind = Math.sin(windTime * 1.2) * 2.5 + Math.sin(windTime * 2.7) * 1.2;
+    const baseWindRot = Math.sin(windTime * 1.0) * 1.5 + Math.sin(windTime * 2.3) * 0.8;
+
+    plant.setAttribute('transform', `rotate(${baseWindRot}, ${BASE.x}, ${BASE.y})`);
+
+    leaves.forEach((leaf) => {
+      const { def, emergeAt, windPhase, group, blade, vein } = leaf;
+      const stemGrowth = growth;
+
+      const rawTarget = stemGrowth > emergeAt
+        ? clamp((stemGrowth - emergeAt) / (0.25 * GROW_FRAC), 0, 1)
+        : 0;
+      const springTarget = smoothstep(rawTarget);
+
+      const result = spring(springTarget, leaf.unfurl, leaf.vel, 18, 5);
+      leaf.unfurl = result.val;
+      leaf.vel = result.vel;
+
+      const show = leaf.unfurl > 0.01;
+      group.style.display = show ? '' : 'none';
+
+      if (show) {
+        const distOnStem = def.dist * fullLength * Math.min(growth / def.dist, 1);
+        const stemDist = Math.min(distOnStem, fullLength * growth);
+        const pt = stemEl.getPointAtLength(clamp(stemDist, 0, fullLength));
+        const tangent = getTangentAngle(clamp(stemDist, 1, fullLength - 1));
+
+        const u = leaf.unfurl;
+        const localWind = Math.sin(windTime * 1.8 + windPhase) * 1.5 + Math.sin(windTime * 3.2 - windPhase * 0.7) * 0.8;
+        const windEffect = (globalWind * 0.4 + localWind) * u;
+
+        const baseAngle = def.side * def.angle * (Math.PI / 180);
+        const totalAngle = tangent + baseAngle + windEffect * (Math.PI / 180);
+
+        const bladeScale = 0.15 + 0.85 * u;
+        const petioleLen = lerp(4, 8, u);
+        const leafBaseX = pt.x + Math.cos(totalAngle) * petioleLen;
+        const leafBaseY = pt.y + Math.sin(totalAngle) * petioleLen;
+        const leafTipX = leafBaseX + Math.sin(totalAngle) * def.len * bladeScale;
+        const leafTipY = leafBaseY - Math.cos(totalAngle) * def.len * bladeScale;
+
+        group.setAttribute('transform',
+          `translate(${leafBaseX}, ${leafBaseY}) rotate(${totalAngle * 180 / Math.PI}) scale(1, ${bladeScale})`);
+
+        petioles[leaves.indexOf(leaf)].setAttribute('x1', String(pt.x));
+        petioles[leaves.indexOf(leaf)].setAttribute('y1', String(pt.y));
+        petioles[leaves.indexOf(leaf)].setAttribute('x2', String(leafBaseX));
+        petioles[leaves.indexOf(leaf)].setAttribute('y2', String(leafBaseY));
+        petioles[leaves.indexOf(leaf)].setAttribute('stroke-opacity', String(clamp(u * 2, 0, 1)));
+      } else {
+        petioles[leaves.indexOf(leaf)].setAttribute('stroke-opacity', '0');
+      }
+    });
+
+    requestAnimationFrame(tick);
+  }
+
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

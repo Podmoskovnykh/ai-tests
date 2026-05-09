@@ -20,6 +20,8 @@
 | `minimax-m2.5` | OpenCode Zen | svg | 36s | ? |
 | `nemotron-3-super-free` | OpenCode Zen | svg | 2m 22s | ~44.000 |
 | `gps-oss-120b` | Nvidia | svg | 20s | ~50.000 |
+| `glm-4.5-air` | Openrouter | svg | 2m 35s | ~16.000 |
+| `deepseek-v4-flash` | Polza.ai | svg | 2m 11s | ~63.000 |
 
 
 

@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D T-Rex Runner</title>
+<style>
+body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
+#score {
+  position: absolute; top: 20px; right: 20px;
+  color: #fff; font-size: 24px; font-weight: bold;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  z-index: 10;
+  pointer-events: none;
+}
+#game-over {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  color: #fff; font-size: 48px; font-weight: bold;
+  text-shadow: 0 4px 12px rgba(0,0,0,0.7);
+  z-index: 10;
+  display: none;
+  text-align: center;
+  pointer-events: none;
+}
+#game-over small {
+  display: block; font-size: 20px; margin-top: 12px;
+  font-weight: normal;
+  pointer-events: auto; cursor: pointer;
+}
+</style>
+</head>
+<body>
+<div id="score">0</div>
+<div id="game-over">GAME OVER<small>Press Space to Restart</small></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87CEEB);
+scene.fog = new THREE.Fog(0x87CEEB, 30, 60);
+
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(4, 3, 8);
+camera.lookAt(0, 1, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+document.body.prepend(renderer.domElement);
+
+const hemiLight = new THREE.HemisphereLight(0x87CEEB, 0xC4A56C, 0.8);
+scene.add(hemiLight);
+
+const sunLight = new THREE.DirectionalLight(0xFFEECC, 2.0);
+sunLight.position.set(10, 15, 5);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.width = 1024;
+sunLight.shadow.mapSize.height = 1024;
+sunLight.shadow.camera.near = 0.5;
+sunLight.shadow.camera.far = 40;
+sunLight.shadow.camera.left = -15;
+sunLight.shadow.camera.right = 15;
+sunLight.shadow.camera.top = 15;
+sunLight.shadow.camera.bottom = -15;
+scene.add(sunLight);
+
+const ambient = new THREE.AmbientLight(0x404060, 0.3);
+scene.add(ambient);
+
+const groundGeo = new THREE.PlaneGeometry(80, 80);
+const groundMat = new THREE.MeshStandardMaterial({ color: 0xE8C872, roughness: 0.9 });
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI / 2;
+ground.position.z = -10;
+ground.receiveShadow = true;
+scene.add(ground);
+
+function buildTrex() {
+  const group = new THREE.Group();
+
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x4A7C59, roughness: 0.6 });
+  const bellyMat = new THREE.MeshStandardMaterial({ color: 0x8FCB9B, roughness: 0.6 });
+  const eyeMat = new THREE.MeshStandardMaterial({ color: 0xFFFFFF });
+  const pupilMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+  const mouthMat = new THREE.MeshStandardMaterial({ color: 0xCC4444 });
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.55, 0.9), bodyMat);
+  body.position.y = 0.6;
+  body.castShadow = true;
+  group.add(body);
+
+  const belly = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.2, 0.7), bellyMat);
+  belly.position.set(0, 0.35, 0.05);
+  group.add(belly);
+
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.35, 0.35), bodyMat);
+  head.position.set(0, 0.98, 0.45);
+  head.castShadow = true;
+  group.add(head);
+
+  const snout = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.12, 0.2), bodyMat);
+  snout.position.set(0, 0.85, 0.62);
+  group.add(snout);
+
+  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.08, 0.15), mouthMat);
+  jaw.position.set(0, 0.72, 0.62);
+  group.add(jaw);
+
+  const eyeWhite = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), eyeMat);
+  eyeWhite.position.set(0.12, 1.08, 0.58);
+  group.add(eyeWhite);
+  const eyeWhite2 = eyeWhite.clone();
+  eyeWhite2.position.x = -0.12;
+  group.add(eyeWhite2);
+
+  const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), pupilMat);
+  pupil.position.set(0.12, 1.08, 0.63);
+  group.add(pupil);
+  const pupil2 = pupil.clone();
+  pupil2.position.x = -0.12;
+  group.add(pupil2);
+
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.35), bodyMat);
+  tail.position.set(0, 0.45, -0.55);
+  tail.rotation.x = -0.3;
+  tail.castShadow = true;
+  group.add(tail);
+
+  const armMat = bodyMat;
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.15, 0.25), armMat);
+  arm.position.set(0.2, 0.55, 0.15);
+  group.add(arm);
+  const arm2 = arm.clone();
+  arm2.position.x = -0.2;
+  group.add(arm2);
+
+  const legMat = new THREE.MeshStandardMaterial({ color: 0x3D6648, roughness: 0.7 });
+  const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.35, 0.12), legMat);
+  leg.position.set(0.15, 0.18, 0.1);
+  leg.castShadow = true;
+  group.add(leg);
+  const leg2 = leg.clone();
+  leg2.position.x = -0.15;
+  leg2.position.z = -0.1;
+  group.add(leg2);
+
+  const footMat = new THREE.MeshStandardMaterial({ color: 0x2D4F38, roughness: 0.8 });
+  const foot = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.06, 0.2), footMat);
+  foot.position.set(0.15, 0.0, 0.1);
+  group.add(foot);
+  const foot2 = foot.clone();
+  foot2.position.x = -0.15;
+  foot2.position.z = -0.1;
+  group.add(foot2);
+
+  return group;
+}
+
+const trex = buildTrex();
+trex.position.set(0, 0, 0);
+trex.scale.set(1.2, 1.2, 1.2);
+scene.add(trex);
+
+function buildCactus() {
+  const group = new THREE.Group();
+  const green = new THREE.MeshStandardMaterial({ color: 0x5B8C3E, roughness: 0.7 });
+  const darkGreen = new THREE.MeshStandardMaterial({ color: 0x3D6B28, roughness: 0.7 });
+
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 0.6, 6), green);
+  trunk.position.y = 0.3;
+  trunk.castShadow = true;
+  group.add(trunk);
+
+  const arm1 = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.25, 5), darkGreen);
+  arm1.position.set(0.15, 0.35, 0);
+  arm1.rotation.z = -0.5;
+  group.add(arm1);
+
+  const arm2 = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.25, 5), darkGreen);
+  arm2.position.set(-0.15, 0.35, 0);
+  arm2.rotation.z = 0.5;
+  group.add(arm2);
+
+  const arm3 = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.2, 5), darkGreen);
+  arm3.position.set(0.15, 0.15, 0);
+  arm3.rotation.z = -0.4;
+  group.add(arm3);
+  const arm4 = arm3.clone();
+  arm4.position.x = -0.15;
+  arm4.position.y = 0.15;
+  arm4.rotation.z = 0.4;
+  group.add(arm4);
+
+  const top = new THREE.Mesh(new THREE.SphereGeometry(0.08, 5, 5), green);
+  top.position.y = 0.65;
+  group.add(top);
+
+  return group;
+}
+
+function buildRock() {
+  const group = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0x8B7D6B, roughness: 0.9 });
+
+  const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.2 + Math.random() * 0.15, 0), mat);
+  rock.position.y = 0.15;
+  rock.rotation.set(Math.random(), Math.random(), Math.random());
+  rock.castShadow = true;
+  group.add(rock);
+
+  const rock2 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.12 + Math.random() * 0.1, 0), mat);
+  rock2.position.set(0.15, 0.08, 0.1);
+  rock2.rotation.set(Math.random(), Math.random(), Math.random());
+  rock2.castShadow = true;
+  group.add(rock2);
+
+  return group;
+}
+
+function buildTallCactus() {
+  const group = new THREE.Group();
+  const green = new THREE.MeshStandardMaterial({ color: 0x5B8C3E, roughness: 0.7 });
+
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 0.9, 6), green);
+  trunk.position.y = 0.45;
+  trunk.castShadow = true;
+  group.add(trunk);
+
+  const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.4, 5), green);
+  arm.position.set(0.2, 0.55, 0);
+  arm.rotation.z = -0.7;
+  group.add(arm);
+
+  const arm2 = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.4, 5), green);
+  arm2.position.set(-0.2, 0.55, 0);
+  arm2.rotation.z = 0.7;
+  group.add(arm2);
+
+  const top = new THREE.Mesh(new THREE.SphereGeometry(0.07, 5, 5), green);
+  top.position.y = 0.95;
+  group.add(top);
+
+  return group;
+}
+
+const obstacles = [];
+const chunkSize = 20;
+const viewDistance = 40;
+let chunks = {};
+let speed = 4;
+let score = 0;
+let isGameOver = false;
+let isJumping = false;
+let velocityY = 0;
+const gravity = -18;
+let groundY = 0;
+let lastChunkZ = 0;
+let obstacleTimer = 0;
+let minObstacleInterval = 1.2;
+let gameTime = 0;
+let highScore = 0;
+
+function getChunkKey(z) {
+  return Math.round(z / chunkSize);
+}
+
+function generateChunk(chunkZ) {
+  const key = getChunkKey(chunkZ);
+  if (chunks[key]) return;
+  const container = new THREE.Group();
+  container.position.z = chunkZ;
+  scene.add(container);
+
+  const colors = [0xD4A54A, 0xC49A3C, 0xE8C872, 0xB8893C];
+  for (let i = 0; i < 12; i++) {
+    const size = 0.2 + Math.random() * 0.4;
+    const rockMat = new THREE.MeshStandardMaterial({
+      color: colors[Math.floor(Math.random() * colors.length)],
+      roughness: 0.9
+    });
+    const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(size, 0), rockMat);
+    const x = (Math.random() - 0.5) * 14;
+    const z = (Math.random() - 0.5) * chunkSize * 0.8;
+    rock.position.set(x, size * 0.4, z);
+    rock.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+    rock.receiveShadow = true;
+    container.add(rock);
+  }
+
+  const bushMat = new THREE.MeshStandardMaterial({ color: 0x6B9B4E, roughness: 0.8 });
+  for (let i = 0; i < 8; i++) {
+    const bush = new THREE.Mesh(new THREE.SphereGeometry(0.1 + Math.random() * 0.15, 5, 5), bushMat);
+    bush.position.set((Math.random() - 0.5) * 14, 0.08, (Math.random() - 0.5) * chunkSize * 0.8);
+    bush.scale.y = 0.5;
+    container.add(bush);
+  }
+
+  chunks[key] = container;
+}
+
+function spawnObstacle() {
+  const zPos = lastChunkZ + 4 + Math.random() * 6;
+  let obs;
+  if (Math.random() < 0.2) {
+    obs = buildTallCactus();
+  } else {
+    obs = Math.random() < 0.3 ? buildRock() : buildCactus();
+  }
+  const xPos = (Math.random() - 0.5) * 2.5;
+  obs.position.set(xPos, 0, zPos);
+  scene.add(obs);
+  obstacles.push({ mesh: obs, z: zPos, x: xPos });
+}
+
+function resetGame() {
+  isGameOver = false;
+  speed = 4;
+  score = 0;
+  gameTime = 0;
+  obstacleTimer = 0;
+  minObstacleInterval = 1.2;
+  trex.position.y = 0;
+  velocityY = 0;
+  isJumping = false;
+  document.getElementById('score').textContent = '0';
+  document.getElementById('game-over').style.display = 'none';
+
+  obstacles.forEach(o => scene.remove(o.mesh));
+  obstacles.length = 0;
+
+  Object.values(chunks).forEach(c => scene.remove(c));
+  chunks = {};
+
+  lastChunkZ = 0;
+  generateChunk(0);
+}
+
+function checkCollision() {
+  const trexBox = new THREE.Box3(new THREE.Vector3(), new THREE.Vector3());
+  const trexWorld = new THREE.Box3();
+  trexBox.setFromObject(trex);
+  trexBox.expandByScalar(0.1);
+
+  for (const obs of obstacles) {
+    const obsBox = new THREE.Box3();
+    obsBox.setFromObject(obs.mesh);
+    if (trexBox.intersectsBox(obsBox)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (isGameOver) {
+      resetGame();
+      return;
+    }
+    if (!isJumping && trex.position.y <= 0.01) {
+      isJumping = true;
+      velocityY = 5.5;
+    }
+  }
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+generateChunk(0);
+
+let obstacleCooldown = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  if (!isGameOver) {
+    const dt = 1 / 60;
+    gameTime += dt;
+    speed = 4 + gameTime * 0.12;
+    if (speed > 12) speed = 12;
+
+    if (isJumping || trex.position.y > 0) {
+      velocityY += gravity * dt;
+      trex.position.y += velocityY * dt;
+      if (trex.position.y <= 0) {
+        trex.position.y = 0;
+        velocityY = 0;
+        isJumping = false;
+      }
+    }
+
+    const runCycle = gameTime * speed * 1.5;
+    trex.position.z = -runCycle * 0.05;
+
+    obstacles.forEach(o => {
+      o.mesh.position.z += speed * dt * 1.2;
+      o.z = o.mesh.position.z;
+    });
+
+    const clipped = obstacles.filter(o => o.z > 5);
+    clipped.forEach(o => {
+      scene.remove(o.mesh);
+    });
+    obstacles.length = 0;
+    obstacles.push(...obstacles.filter(o => o.z <= 5));
+
+    const viewZ = -runCycle * 0.05;
+    const playerChunkZ = viewZ;
+
+    const startChunk = Math.floor((playerChunkZ - viewDistance / 2) / chunkSize) * chunkSize;
+    const endChunk = Math.ceil((playerChunkZ + viewDistance / 2) / chunkSize) * chunkSize;
+
+    for (let z = startChunk; z <= endChunk; z += chunkSize) {
+      generateChunk(z);
+    }
+
+    for (const key in chunks) {
+      const chunk = chunks[key];
+      const cz = chunk.position.z;
+      if (cz < playerChunkZ - viewDistance) {
+        scene.remove(chunk);
+        delete chunks[key];
+      }
+    }
+
+    obstacleCooldown -= dt;
+    if (obstacleCooldown <= 0) {
+      const interval = Math.max(0.6, minObstacleInterval - gameTime * 0.006);
+      obstacleCooldown = interval + Math.random() * 0.8;
+      spawnObstacle();
+    }
+
+    score = Math.floor(gameTime * speed * 2);
+    document.getElementById('score').textContent = score;
+
+    const bob = Math.sin(runCycle * 2) * 0.015;
+    trex.position.y = Math.max(trex.position.y, 0) + (trex.position.y > 0 ? 0 : bob);
+
+    if (checkCollision()) {
+      isGameOver = true;
+      if (score > highScore) highScore = score;
+      document.getElementById('game-over').style.display = 'block';
+      document.getElementById('game-over').innerHTML =
+        `GAME OVER<br><small>Score: ${score} | Best: ${highScore}<br>Press Space to Restart</small>`;
+    }
+  }
+
+  renderer.render(scene, camera);
+}
+
+animate();
+</script>
+</body>
+</html>

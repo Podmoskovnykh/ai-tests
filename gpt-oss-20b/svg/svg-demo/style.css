@@ -1,0 +1,13 @@
+/* Minimal styling for the demo */
+body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background: #f0f8ff;
+}
+#plant {
+  fill: none;
+  stroke: #2e8b57;
+  stroke-width: 4;
+}

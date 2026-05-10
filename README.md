@@ -12,7 +12,7 @@
 - **Промпт:** содержимое `.md`-файла, один запрос без уточнений (например, 'create project from /home/ivpodmoskovnykh/ai-tests/kimi-k2.6/svg/svg.md')
 - **Условия:** одинаковые настройки для всех моделей в рамках одного теста
 
-## Модели
+## Модели и задачи
 
 ### svg
 
@@ -32,9 +32,11 @@
 
 | Модель | Провайдер | Время выполнения | Потраченные токены |
 |---|---|---|---|
-| `kimi-k2.6` | Nvidia  | 3m 59s | ~47.000 |
-| `minimax-m2.5` | OpenCode Zen  | 1m 59s | ~22.000 |
-| `deepseek-v4-flash` | Polza.ai  | 1m 22s | ~49.000 |
+| `kimi-k2.6` | Nvidia | 3m 59s | ~47.000 |
+| `minimax-m2.5` | OpenCode Zen | 1m 59s | ~22.000 |
+| `nemotron-3-super-free` | OpenCode Zen | 2m 15s | ~76.000 |
+| `glm-4.5-air` | Openrouter | 2m 39s | ~16.000 |
+| `deepseek-v4-flash` | Polza.ai | 1m 22s | ~49.000 |
 
 
 

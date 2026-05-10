@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Low-Poly Dino Runner</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+            background: #87CEEB;
+        }
+        
+        #gameCanvas {
+            display: block;
+        }
+        
+        #score {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #333;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(255,255,255,0.8);
+            z-index: 100;
+        }
+        
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #333;
+            font-size: 16px;
+            text-shadow: 1px 1px 2px rgba(255,255,255,0.8);
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div id="score">Score: 0</div>
+    <div id="instructions">Press SPACEBAR to jump</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Game setup
+        let scene, camera, renderer;
+        let dino, obstacles = [];
+        let score = 0;
+        let gameSpeed = 0.05;
+        let isJumping = false;
+        let jumpVelocity = 0;
+        let gameState = 'playing';
+        
+        // Initialize the game
+        function init() {
+            // Create scene
+            scene = new THREE.Scene();
+            scene.fog = new THREE.Fog(0x87CEEB, 10, 100);
+            
+            // Setup camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 3, 8);
+            camera.lookAt(0, 0, 0);
+            
+            // Setup renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x87CEEB);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.body.appendChild(renderer.domElement);
+            
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 10, 5);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.camera.left = -20;
+            directionalLight.shadow.camera.right = 20;
+            directionalLight.shadow.camera.top = 20;
+            directionalLight.shadow.camera.bottom = -20;
+            scene.add(directionalLight);
+            
+            // Create ground
+            createGround();
+            
+            // Create dino
+            createDino();
+            
+            // Start spawning obstacles
+            setInterval(spawnObstacle, 2000);
+            
+            // Event listeners
+            document.addEventListener('keydown', onKeyDown);
+            window.addEventListener('resize', onWindowResize);
+            
+            // Start game loop
+            animate();
+        }
+        
+        function createGround() {
+            const groundGeometry = new THREE.PlaneGeometry(100, 100);
+            const groundMaterial = new THREE.MeshLambertMaterial({ 
+                color: 0xDEB887,
+                flatShading: true
+            });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+            
+            // Add some ground details
+            for (let i = 0; i < 50; i++) {
+                const rockGeometry = new THREE.DodecahedronGeometry(0.2, 0);
+                const rockMaterial = new THREE.MeshLambertMaterial({ 
+                    color: 0x8B4513,
+                    flatShading: true
+                });
+                const rock = new THREE.Mesh(rockGeometry, rockMaterial);
+                rock.position.set(
+                    (Math.random() - 0.5) * 100,
+                    0.1,
+                    -Math.random() * 50 - 10
+                );
+                rock.rotation.x = Math.random() * 0.5;
+                rock.rotation.y = Math.random() * 0.5;
+                rock.rotation.z = Math.random() * 0.5;
+                rock.castShadow = true;
+                scene.add(rock);
+            }
+        }
+        
+        function createDino() {
+            dino = new THREE.Group();
+            
+            // Body
+            const bodyGeometry = new THREE.BoxGeometry(1, 0.8, 1.5);
+            const bodyMaterial = new THREE.MeshLambertMaterial({ 
+                color: 0x228B22,
+                flatShading: true
+            });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            body.position.y = 0.4;
+            body.castShadow = true;
+            dino.add(body);
+            
+            // Head
+            const headGeometry = new THREE.BoxGeometry(0.6, 0.6, 0.8);
+            const headMaterial = new THREE.MeshLambertMaterial({ 
+                color: 0x32CD32,
+                flatShading: true
+            });
+            const head = new THREE.Mesh(headGeometry, headMaterial);
+            head.position.set(0, 0.7, 0.8);
+            head.castShadow = true;
+            dino.add(head);
+            
+            // Legs
+            const legGeometry = new THREE.BoxGeometry(0.2, 0.6, 0.2);
+            const legMaterial = new THREE.MeshLambertMaterial({ 
+                color: 0x228B22,
+                flatShading: true
+            });
+            
+            const frontLeg = new THREE.Mesh(legGeometry, legMaterial);
+            frontLeg.position.set(0.3, 0.3, 0.5);
+            frontLeg.castShadow = true;
+            dino.add(frontLeg);
+            
+            const backLeg = new THREE.Mesh(legGeometry, legMaterial);
+            backLeg.position.set(-0.3, 0.3, 0.5);
+            backLeg.castShadow = true;
+            dino.add(backLeg);
+            
+            // Tail
+            const tailGeometry = new THREE.BoxGeometry(0.3, 0.3, 1);
+            const tailMaterial = new THREE.MeshLambertMaterial({ 
+                color: 0x228B22,
+                flatShading: true
+            });
+            const tail = new THREE.Mesh(tailGeometry, tailMaterial);
+            tail.position.set(0, 0.4, -1.2);
+            tail.rotation.x = 0.3;
+            tail.castShadow = true;
+            dino.add(tail);
+            
+            dino.position.y = 0;
+            scene.add(dino);
+        }
+        
+        function spawnObstacle() {
+            if (gameState !== 'playing') return;
+            
+            const obstacle = new THREE.Group();
+            
+            // Randomly choose between cactus and rock
+            if (Math.random() < 0.7) {
+                // Create cactus
+                const cactusGeometry = new THREE.CylinderGeometry(0.3, 0.3, 1.5, 8);
+                const cactusMaterial = new THREE.MeshLambertMaterial({ 
+                    color: 0x228B22,
+                    flatShading: true
+                });
+                const cactus = new THREE.Mesh(cactusGeometry, cactusMaterial);
+                c.position.y = 0.75;
+                cactus.castShadow = true;
+                obstacle.add(cactus);
+                
+                // Add cactus arms
+                const armGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.6, 6);
+                const leftArm = new THREE.Mesh(armGeometry, cactusMaterial);
+                leftArm.position.set(-0.4, 1, 0);
+                leftArm.castShadow = true;
+                obstacle.add(leftArm);
+                
+                const rightArm = new THREE.Mesh(armGeometry, cactusMaterial);
+                rightArm.position.set(0.4, 1.2, 0);
+                rightArm.castShadow = true;
+                obstacle.add(rightArm);
+            } else {
+                // Create rock
+                const rockGeometry = new THREE.DodecahedronGeometry(0.8, 0);
+                const rockMaterial = new THREE.MeshLambertMaterial({ 
+                    color: 0x8B4513,
+                    flatShading: true
+                });
+                const rock = new THREE.Mesh(rockGeometry, rockMaterial);
+                rock.position.y = 0.4;
+                rock.rotation.x = Math.random() * 0.5;
+                rock.rotation.y = Math.random() * 0.5;
+                rock.rotation.z = Math.random() * 0.5;
+                rock.castShadow = true;
+                obstacle.add(rock);
+            }
+            
+            obstacle.position.set(0, 0, -15);
+            obstacles.push(obstacle);
+            scene.add(obstacle);
+        }
+        
+        function updateObstacles() {
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                const obstacle = obstacles[i];
+                obstacle.position.z += gameSpeed;
+                
+                // Remove obstacles that are too far back
+                if (obstacle.position.z > 10) {
+                    scene.remove(obstacle);
+                    obstacles.splice(i, 1);
+                    score += 10;
+                    document.getElementById('score').textContent = `Score: ${score}`;
+                    
+                    // Increase speed gradually
+                    if (score % 100 === 0) {
+                        gameSpeed += 0.01;
+                    }
+                }
+                
+                // Check collision
+                if (checkCollision(dino, obstacle)) {
+                    gameOver();
+                }
+            }
+        }
+        
+        function checkCollision(dino, obstacle) {
+            const dinoBox = new THREE.Box3().setFromObject(dino);
+            const obstacleBox = new THREE.Box3().setFromObject(obstacle);
+            return dinoBox.intersectsBox(obstacleBox);
+        }
+        
+        function updateDino() {
+            if (gameState !== 'playing') return;
+            
+            if (isJumping) {
+                dino.position.y += jumpVelocity;
+                jumpVelocity -= 0.01; // gravity
+                
+                if (dino.position.y <= 0) {
+                    dino.position.y = 0;
+                    isJumping = false;
+                    jumpVelocity = 0;
+                }
+            }
+            
+            // Simple idle animation
+            dino.children[0].rotation.z = Math.sin(Date.now() * 0.01) * 0.1;
+            dino.children[1].rotation.z = Math.sin(Date.now() * 0.01) * 0.05;
+        }
+        
+        function jump() {
+            if (!isJumping && gameState === 'playing') {
+                isJumping = true;
+                jumpVelocity = 0.2;
+            }
+        }
+        
+        function gameOver() {
+            gameState = 'gameOver';
+            const gameOverText = document.createElement('div');
+            gameOverText.style.position = 'absolute';
+            gameOverText.style.top = '50%';
+            gameOverText.style.left = '50%';
+            gameOverText.style.transform = 'translate(-50%, -50%)';
+            gameOverText.style.fontSize = '48px';
+            gameOverText.style.color = '#ff4444';
+            gameOverText.style.fontWeight = 'bold';
+            gameOverText.style.textShadow = '2px 2px 4px rgba(0,0,0,0.5)';
+            gameOverText.textContent = 'GAME OVER';
+            gameOverText.style.zIndex = '200';
+            document.body.appendChild(gameOverText);
+        }
+        
+        function onKeyDown(event) {
+            if (event.code === 'Space') {
+                event.preventDefault();
+                jump();
+                
+                // Restart game if game over
+                if (gameState === 'gameOver') {
+                    location.reload();
+                }
+            }
+        }
+        
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            updateDino();
+            updateObstacles();
+            
+            renderer.render(scene, camera);
+        }
+        
+        // Start the game
+        init();
+    </script>
+</body>
+</html>

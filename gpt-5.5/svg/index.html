@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SVG Growing Plant Loop</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg-top: #dfe9ee;
+      --bg-mid: #f4f0df;
+      --bg-bottom: #c8d6bf;
+      --soil: #3f3128;
+      --soil-light: #776150;
+      --stem: #2f7a45;
+      --stem-dark: #1f5d35;
+      --leaf: #54a85a;
+      --leaf-light: #8fd274;
+      --leaf-dark: #2f7d42;
+      --ink: #16321f;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 52% 18%, rgba(255, 255, 255, 0.88), transparent 24%),
+        linear-gradient(180deg, var(--bg-top) 0%, var(--bg-mid) 58%, var(--bg-bottom) 100%);
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    main {
+      width: min(100vw, 1180px);
+      height: min(100vh, 820px);
+      min-height: 520px;
+      display: grid;
+      place-items: center;
+    }
+
+    svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .scene-text {
+      fill: rgba(22, 50, 31, 0.64);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    .sun-ring {
+      fill: none;
+      stroke: rgba(255, 205, 102, 0.28);
+      stroke-width: 1.5;
+      transform-origin: center;
+      animation: sunPulse 6.5s ease-in-out infinite;
+    }
+
+    .cloud {
+      fill: rgba(255, 255, 255, 0.5);
+      animation: drift 18s ease-in-out infinite alternate;
+    }
+
+    .cloud.second {
+      animation-duration: 22s;
+      animation-delay: -5s;
+    }
+
+    .ground-shadow {
+      fill: rgba(39, 54, 35, 0.14);
+    }
+
+    .soil {
+      fill: var(--soil);
+    }
+
+    .soil-highlight {
+      fill: none;
+      stroke: var(--soil-light);
+      stroke-linecap: round;
+      stroke-width: 4;
+      opacity: 0.58;
+    }
+
+    .stem {
+      fill: none;
+      stroke: url(#stemGradient);
+      stroke-linecap: round;
+      stroke-width: 13;
+      filter: url(#plantShadow);
+    }
+
+    .stem-core {
+      fill: none;
+      stroke: rgba(185, 231, 134, 0.34);
+      stroke-linecap: round;
+      stroke-width: 3;
+      opacity: 0.8;
+    }
+
+    .leaf-group {
+      transform-box: fill-box;
+      transform-origin: 0 50%;
+      filter: url(#plantShadow);
+    }
+
+    .leaf {
+      fill: url(#leafGradient);
+      stroke: rgba(25, 88, 43, 0.62);
+      stroke-width: 1.2;
+    }
+
+    .leaf-vein {
+      fill: none;
+      stroke: rgba(235, 255, 199, 0.55);
+      stroke-linecap: round;
+      stroke-width: 1.4;
+    }
+
+    .seedling {
+      fill: var(--stem-dark);
+      opacity: 0.72;
+    }
+
+    .root-line {
+      fill: none;
+      stroke: rgba(238, 210, 160, 0.26);
+      stroke-linecap: round;
+      stroke-width: 2.4;
+    }
+
+    @keyframes drift {
+      from {
+        transform: translateX(-16px);
+      }
+
+      to {
+        transform: translateX(22px);
+      }
+    }
+
+    @keyframes sunPulse {
+      0%,
+      100% {
+        transform: scale(0.96);
+        opacity: 0.45;
+      }
+
+      50% {
+        transform: scale(1.05);
+        opacity: 0.92;
+      }
+    }
+
+    @media (max-width: 720px) {
+      main {
+        min-height: 460px;
+      }
+
+      .scene-text {
+        font-size: 11px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main aria-label="Looping SVG animation of a plant growing">
+    <svg id="plantScene" viewBox="0 0 1000 700" role="img" aria-labelledby="title desc">
+      <title id="title">Looping SVG plant growth animation</title>
+      <desc id="desc">A stem extends upward while leaves sprout, unfurl, sway in the wind, and loop seamlessly.</desc>
+
+      <defs>
+        <linearGradient id="stemGradient" x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0%" stop-color="#1f5d35"></stop>
+          <stop offset="46%" stop-color="#2f7a45"></stop>
+          <stop offset="100%" stop-color="#66b75d"></stop>
+        </linearGradient>
+
+        <radialGradient id="leafGradient" cx="38%" cy="34%" r="74%">
+          <stop offset="0%" stop-color="#a8e57e"></stop>
+          <stop offset="48%" stop-color="#54a85a"></stop>
+          <stop offset="100%" stop-color="#2f7d42"></stop>
+        </radialGradient>
+
+        <filter id="plantShadow" x="-35%" y="-35%" width="170%" height="170%">
+          <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#16321f" flood-opacity="0.18"></feDropShadow>
+        </filter>
+
+        <clipPath id="groundClip">
+          <rect x="0" y="564" width="1000" height="136" rx="0"></rect>
+        </clipPath>
+
+        <path id="leafShape" d="M0,0 C24,-37 79,-47 122,-3 C81,42 24,38 0,0 Z"></path>
+      </defs>
+
+      <rect width="1000" height="700" fill="transparent"></rect>
+
+      <g opacity="0.88">
+        <circle cx="780" cy="116" r="44" fill="#ffd36b"></circle>
+        <circle class="sun-ring" cx="780" cy="116" r="66"></circle>
+        <circle class="sun-ring" cx="780" cy="116" r="92" style="animation-delay:-2s"></circle>
+      </g>
+
+      <g class="cloud" transform="translate(110 120)">
+        <ellipse cx="0" cy="0" rx="42" ry="18"></ellipse>
+        <ellipse cx="36" cy="-8" rx="34" ry="21"></ellipse>
+        <ellipse cx="76" cy="2" rx="50" ry="20"></ellipse>
+      </g>
+
+      <g class="cloud second" transform="translate(720 222) scale(.72)">
+        <ellipse cx="0" cy="0" rx="42" ry="18"></ellipse>
+        <ellipse cx="36" cy="-8" rx="34" ry="21"></ellipse>
+        <ellipse cx="76" cy="2" rx="50" ry="20"></ellipse>
+      </g>
+
+      <text class="scene-text" x="54" y="646">SVG growth loop</text>
+
+      <ellipse class="ground-shadow" id="plantShadowGround" cx="501" cy="586" rx="42" ry="12"></ellipse>
+
+      <g id="plant" transform="translate(0 0)">
+        <path id="stem" class="stem" d=""></path>
+        <path id="stemCore" class="stem-core" d=""></path>
+
+        <g id="leaves"></g>
+
+        <ellipse class="seedling" id="bud" cx="500" cy="565" rx="9" ry="6"></ellipse>
+      </g>
+
+      <g clip-path="url(#groundClip)">
+        <path class="soil" d="M0,582 C130,548 251,573 366,565 C500,555 576,535 714,561 C841,585 908,552 1000,574 L1000,700 L0,700 Z"></path>
+        <path class="soil-highlight" d="M74,604 C188,584 266,607 363,594"></path>
+        <path class="soil-highlight" d="M612,596 C705,577 816,608 925,586"></path>
+        <path class="root-line" d="M501,584 C489,606 462,617 446,642"></path>
+        <path class="root-line" d="M503,585 C523,610 557,614 585,646"></path>
+        <path class="root-line" d="M499,586 C502,618 494,646 481,677"></path>
+      </g>
+    </svg>
+  </main>
+
+  <script>
+    const stem = document.getElementById('stem');
+    const stemCore = document.getElementById('stemCore');
+    const leavesLayer = document.getElementById('leaves');
+    const bud = document.getElementById('bud');
+    const plant = document.getElementById('plant');
+    const groundShadow = document.getElementById('plantShadowGround');
+
+    const cycleMs = 7800;
+    const base = { x: 500, y: 572 };
+    const maxHeight = 384;
+
+    const leafSpecs = [
+      { side: -1, at: 0.26, delay: 0.14, size: 0.58, angle: -154, bend: 0.9 },
+      { side: 1, at: 0.39, delay: 0.25, size: 0.64, angle: -28, bend: 1.2 },
+      { side: -1, at: 0.53, delay: 0.36, size: 0.74, angle: -160, bend: 1.6 },
+      { side: 1, at: 0.66, delay: 0.47, size: 0.84, angle: -21, bend: 1.4 },
+      { side: -1, at: 0.79, delay: 0.58, size: 0.62, angle: -146, bend: 1.9 },
+      { side: 1, at: 0.89, delay: 0.66, size: 0.54, angle: -38, bend: 1.7 }
+    ];
+
+    const leafNodes = leafSpecs.map((spec, index) => {
+      const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      group.setAttribute('class', 'leaf-group');
+
+      const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+      use.setAttribute('href', '#leafShape');
+      use.setAttribute('class', 'leaf');
+
+      const vein = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      vein.setAttribute('class', 'leaf-vein');
+      vein.setAttribute('d', 'M8,0 C42,-4 76,-5 112,-3');
+
+      group.append(use, vein);
+      leavesLayer.append(group);
+      return { group, spec, index };
+    });
+
+    const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
+    const mix = (a, b, t) => a + (b - a) * t;
+    const easeInOut = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    const easeOutBack = (t) => {
+      const c1 = 1.70158;
+      const c3 = c1 + 1;
+      return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+    };
+    const fadeTail = (t) => 1 - easeInOut(clamp((t - 0.86) / 0.14));
+
+    function stemPoint(t, height, wind) {
+      const y = base.y - height * t;
+      const x = base.x
+        + Math.sin(t * Math.PI * 0.9) * mix(0, 34, t) * wind
+        + Math.sin(t * Math.PI * 2.2 + wind * 1.3) * 7 * t;
+      return { x, y };
+    }
+
+    function stemPath(height, wind) {
+      const p0 = stemPoint(0, height, wind);
+      const p1 = stemPoint(0.34, height, wind);
+      const p2 = stemPoint(0.72, height, wind);
+      const p3 = stemPoint(1, height, wind);
+      return `M${p0.x},${p0.y} C${p1.x},${p1.y} ${p2.x},${p2.y} ${p3.x},${p3.y}`;
+    }
+
+    function render(now) {
+      const raw = (now % cycleMs) / cycleMs;
+      const visibility = fadeTail(raw);
+      const grow = easeInOut(clamp(raw / 0.74));
+      const height = maxHeight * grow;
+      const wind = Math.sin(raw * Math.PI * 2) * 0.65 + Math.sin(raw * Math.PI * 6.2) * 0.18;
+      const d = stemPath(height, wind);
+
+      stem.setAttribute('d', d);
+      stemCore.setAttribute('d', d);
+      plant.setAttribute('opacity', visibility.toFixed(3));
+
+      const tip = stemPoint(1, height, wind);
+      const budScale = mix(0.58, 1.18, clamp((raw - 0.05) / 0.42)) * visibility;
+      bud.setAttribute('cx', tip.x.toFixed(2));
+      bud.setAttribute('cy', tip.y.toFixed(2));
+      bud.setAttribute('rx', (9 * budScale).toFixed(2));
+      bud.setAttribute('ry', (6 * budScale).toFixed(2));
+
+      groundShadow.setAttribute('rx', (42 + grow * 90).toFixed(2));
+      groundShadow.setAttribute('opacity', (0.5 + grow * 0.48).toFixed(3));
+
+      leafNodes.forEach(({ group, spec, index }) => {
+        const local = clamp((raw - spec.delay) / 0.22);
+        const unfurl = clamp(easeOutBack(local), 0, 1.22);
+        const ageFade = fadeTail(raw);
+        const anchor = stemPoint(spec.at, height, wind);
+        const spring = Math.sin((local * 3.6 + index * 0.23) * Math.PI) * (1 - clamp(local)) * 20;
+        const breeze = Math.sin(raw * Math.PI * 7 + index * 1.7) * (5 + spec.bend * 2);
+        const scaleX = spec.size * unfurl * ageFade;
+        const scaleY = spec.size * (0.12 + 0.88 * clamp(local)) * ageFade;
+        const flip = spec.side < 0 ? -1 : 1;
+        const rotation = spec.angle + breeze + spring * spec.side;
+
+        group.setAttribute(
+          'transform',
+          `translate(${anchor.x.toFixed(2)} ${anchor.y.toFixed(2)}) rotate(${rotation.toFixed(2)}) scale(${(scaleX * flip).toFixed(4)} ${scaleY.toFixed(4)})`
+        );
+        group.setAttribute('opacity', (clamp(local * 1.4) * ageFade).toFixed(3));
+      });
+
+      requestAnimationFrame(render);
+    }
+
+    requestAnimationFrame(render);
+  </script>
+</body>
+</html>

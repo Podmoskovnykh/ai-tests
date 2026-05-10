@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Low-Poly Dino Runner</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #ffe6a7;
+      color: #21313c;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow: hidden;
+      background: linear-gradient(#8ed1ff 0%, #ffd994 58%, #f0a868 100%);
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    .hud {
+      position: fixed;
+      top: 18px;
+      left: 18px;
+      right: 18px;
+      z-index: 2;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+      pointer-events: none;
+      color: #23333d;
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+    }
+
+    .score {
+      display: grid;
+      gap: 2px;
+      min-width: 132px;
+      padding: 11px 13px;
+      border: 2px solid rgba(44, 60, 68, 0.18);
+      border-radius: 8px;
+      background: rgba(255, 247, 219, 0.68);
+      box-shadow: 0 10px 30px rgba(127, 81, 36, 0.12);
+      backdrop-filter: blur(9px);
+    }
+
+    .score span:first-child {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #72654d;
+    }
+
+    .score strong {
+      font-size: 28px;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .prompt {
+      max-width: min(360px, calc(100vw - 180px));
+      padding: 11px 13px;
+      border: 2px solid rgba(44, 60, 68, 0.18);
+      border-radius: 8px;
+      background: rgba(255, 247, 219, 0.58);
+      box-shadow: 0 10px 30px rgba(127, 81, 36, 0.12);
+      backdrop-filter: blur(9px);
+      font-size: 14px;
+      font-weight: 700;
+      text-align: right;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 3;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(31, 39, 42, 0.22);
+      color: #20303a;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 180ms ease;
+    }
+
+    .overlay.visible {
+      opacity: 1;
+    }
+
+    .panel {
+      width: min(440px, 100%);
+      padding: 22px;
+      border: 2px solid rgba(38, 48, 54, 0.18);
+      border-radius: 8px;
+      background: rgba(255, 247, 219, 0.86);
+      box-shadow: 0 24px 80px rgba(84, 53, 36, 0.22);
+      text-align: center;
+      backdrop-filter: blur(11px);
+    }
+
+    .panel h1 {
+      margin: 0 0 8px;
+      font-size: clamp(28px, 5vw, 44px);
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .panel p {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+      color: #5f604c;
+    }
+
+    @media (max-width: 620px) {
+      .hud {
+        top: 12px;
+        left: 12px;
+        right: 12px;
+      }
+
+      .score {
+        min-width: 112px;
+        padding: 9px 10px;
+      }
+
+      .score strong {
+        font-size: 23px;
+      }
+
+      .prompt {
+        max-width: calc(100vw - 142px);
+        padding: 9px 10px;
+        font-size: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="hud">
+    <div class="score" aria-live="polite">
+      <span>Score</span>
+      <strong id="score">0</strong>
+    </div>
+    <div class="prompt" id="prompt">Space / tap to jump</div>
+  </div>
+
+  <div class="overlay visible" id="overlay">
+    <div class="panel">
+      <h1>Dino Runner</h1>
+      <p>Press space or tap to start</p>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.min.js"></script>
+  <script>
+    (() => {
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x8ed1ff);
+      scene.fog = new THREE.Fog(0x8ed1ff, 24, 78);
+
+      const camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.1, 150);
+      camera.position.set(0, 5.2, 10.5);
+      camera.lookAt(0, 1.5, -4);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      document.body.appendChild(renderer.domElement);
+
+      const scoreEl = document.getElementById('score');
+      const promptEl = document.getElementById('prompt');
+      const overlay = document.getElementById('overlay');
+
+      const palette = {
+        sand: 0xf8c778,
+        sandDark: 0xe3a65a,
+        sun: 0xffe27a,
+        dino: 0x38b869,
+        dinoDark: 0x267d50,
+        cactus: 0x259a72,
+        cactusDark: 0x177355,
+        rock: 0xa76f5d,
+        bone: 0xfff1bc
+      };
+
+      const clock = new THREE.Clock();
+      const state = {
+        running: false,
+        gameOver: false,
+        score: 0,
+        speed: 12,
+        spawnTimer: 0,
+        nextSpawn: 1.4,
+        distance: 0,
+        jumpVelocity: 0,
+        grounded: true,
+        dinoY: 0,
+        shake: 0
+      };
+
+      const world = new THREE.Group();
+      scene.add(world);
+
+      const hemi = new THREE.HemisphereLight(0xffffff, 0xdb8f4e, 2.2);
+      scene.add(hemi);
+
+      const sun = new THREE.DirectionalLight(0xfff4c3, 3.1);
+      sun.position.set(-7, 11, 8);
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(2048, 2048);
+      sun.shadow.camera.left = -18;
+      sun.shadow.camera.right = 18;
+      sun.shadow.camera.top = 18;
+      sun.shadow.camera.bottom = -18;
+      scene.add(sun);
+
+      const sunDisk = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(2.2, 1),
+        new THREE.MeshBasicMaterial({ color: palette.sun })
+      );
+      sunDisk.position.set(-13, 13, -36);
+      scene.add(sunDisk);
+
+      const groundMaterial = new THREE.MeshLambertMaterial({ color: palette.sand, flatShading: true });
+      const ground = new THREE.Mesh(new THREE.BoxGeometry(18, 0.35, 120), groundMaterial);
+      ground.position.set(0, -0.22, -22);
+      ground.receiveShadow = true;
+      world.add(ground);
+
+      const laneStripeMaterial = new THREE.MeshLambertMaterial({ color: 0xf3b95d, flatShading: true });
+      const stripes = [];
+      for (let i = 0; i < 18; i++) {
+        const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.03, 2.1), laneStripeMaterial);
+        stripe.position.set(i % 2 ? -2.2 : 2.2, 0.02, -i * 7);
+        stripe.receiveShadow = true;
+        world.add(stripe);
+        stripes.push(stripe);
+      }
+
+      const decor = [];
+      const obstacles = [];
+      const obstaclePool = [];
+
+      function box(w, h, d, color) {
+        const mesh = new THREE.Mesh(
+          new THREE.BoxGeometry(w, h, d),
+          new THREE.MeshLambertMaterial({ color, flatShading: true })
+        );
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        return mesh;
+      }
+
+      function ico(radius, color, detail = 0) {
+        const mesh = new THREE.Mesh(
+          new THREE.IcosahedronGeometry(radius, detail),
+          new THREE.MeshLambertMaterial({ color, flatShading: true })
+        );
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        return mesh;
+      }
+
+      function makeDino() {
+        const dino = new THREE.Group();
+        const body = box(1.15, 1.15, 1.8, palette.dino);
+        body.position.set(0, 1.05, 0);
+        body.rotation.z = -0.08;
+        dino.add(body);
+
+        const belly = box(0.62, 0.62, 1.38, 0x8be08d);
+        belly.position.set(0.08, 0.9, 0.12);
+        belly.scale.x = 0.86;
+        dino.add(belly);
+
+        const head = box(0.9, 0.76, 0.95, palette.dino);
+        head.position.set(0.05, 1.78, -0.82);
+        dino.add(head);
+
+        const snout = box(0.68, 0.36, 0.55, palette.dino);
+        snout.position.set(0.04, 1.66, -1.43);
+        dino.add(snout);
+
+        const jaw = box(0.54, 0.14, 0.44, palette.bone);
+        jaw.position.set(0.04, 1.48, -1.47);
+        dino.add(jaw);
+
+        const eyeLeft = box(0.08, 0.08, 0.05, 0x17313b);
+        eyeLeft.position.set(-0.24, 1.9, -1.31);
+        const eyeRight = eyeLeft.clone();
+        eyeRight.position.x = 0.24;
+        dino.add(eyeLeft, eyeRight);
+
+        const tail = box(0.48, 0.48, 1.58, palette.dinoDark);
+        tail.position.set(0, 1.08, 1.42);
+        tail.rotation.x = 0.42;
+        dino.add(tail);
+
+        const armLeft = box(0.16, 0.48, 0.18, palette.dinoDark);
+        armLeft.position.set(-0.64, 1.08, -0.65);
+        armLeft.rotation.x = -0.6;
+        const armRight = armLeft.clone();
+        armRight.position.x = 0.64;
+        dino.add(armLeft, armRight);
+
+        const legLeft = box(0.25, 0.82, 0.32, palette.dinoDark);
+        legLeft.position.set(-0.34, 0.3, 0.36);
+        const legRight = legLeft.clone();
+        legRight.position.set(0.34, 0.3, -0.2);
+        dino.add(legLeft, legRight);
+        dino.userData.legs = [legLeft, legRight];
+
+        dino.position.set(0, 0, 2.6);
+        dino.scale.setScalar(0.86);
+        return dino;
+      }
+
+      const dino = makeDino();
+      scene.add(dino);
+
+      function makeCactus() {
+        const cactus = new THREE.Group();
+        const trunk = box(0.46, 1.55, 0.46, palette.cactus);
+        trunk.position.y = 0.78;
+        cactus.add(trunk);
+
+        const cap = ico(0.34, palette.cactus, 0);
+        cap.position.y = 1.58;
+        cap.scale.y = 0.65;
+        cactus.add(cap);
+
+        const armL = box(0.33, 0.72, 0.33, palette.cactusDark);
+        armL.position.set(-0.39, 0.94, 0);
+        const armLTop = box(0.28, 0.34, 0.28, palette.cactusDark);
+        armLTop.position.set(-0.62, 1.18, 0);
+        cactus.add(armL, armLTop);
+
+        const armR = armL.clone();
+        armR.position.set(0.41, 0.74, 0);
+        const armRTop = armLTop.clone();
+        armRTop.position.set(0.64, 0.98, 0);
+        cactus.add(armR, armRTop);
+        cactus.userData.radius = 0.74;
+        return cactus;
+      }
+
+      function makeRock() {
+        const rock = new THREE.Group();
+        const a = ico(0.5, palette.rock, 0);
+        a.position.set(-0.22, 0.38, 0);
+        a.scale.set(1.2, 0.8, 0.95);
+        const b = ico(0.42, 0x8e5b53, 0);
+        b.position.set(0.3, 0.3, 0.12);
+        b.scale.set(1.05, 0.65, 0.85);
+        rock.add(a, b);
+        rock.userData.radius = 0.72;
+        return rock;
+      }
+
+      function makeDecor(index) {
+        const item = Math.random() > 0.45 ? makeCactus() : makeRock();
+        const side = Math.random() > 0.5 ? -1 : 1;
+        item.position.set(side * (5.4 + Math.random() * 2.4), 0, -index * 8 - Math.random() * 5);
+        item.rotation.y = Math.random() * Math.PI;
+        item.scale.setScalar(0.55 + Math.random() * 0.75);
+        world.add(item);
+        decor.push(item);
+      }
+
+      for (let i = 0; i < 34; i++) makeDecor(i);
+
+      function getObstacle() {
+        const obstacle = obstaclePool.pop() || (Math.random() > 0.34 ? makeCactus() : makeRock());
+        obstacle.visible = true;
+        world.add(obstacle);
+        return obstacle;
+      }
+
+      function spawnObstacle() {
+        const obstacle = getObstacle();
+        obstacle.position.set((Math.random() - 0.5) * 0.42, 0, -56);
+        obstacle.rotation.y = (Math.random() - 0.5) * 0.32;
+        obstacle.scale.setScalar(0.92 + Math.random() * 0.32);
+        obstacles.push(obstacle);
+      }
+
+      function recycleObstacle(obstacle) {
+        obstacle.visible = false;
+        world.remove(obstacle);
+        obstaclePool.push(obstacle);
+      }
+
+      function resetGame() {
+        state.running = true;
+        state.gameOver = false;
+        state.score = 0;
+        state.speed = 12;
+        state.spawnTimer = 0;
+        state.nextSpawn = 1.1;
+        state.distance = 0;
+        state.jumpVelocity = 0;
+        state.grounded = true;
+        state.dinoY = 0;
+        state.shake = 0;
+        dino.position.y = 0;
+        dino.rotation.z = 0;
+        while (obstacles.length) recycleObstacle(obstacles.pop());
+        scoreEl.textContent = '0';
+        promptEl.textContent = 'Space / tap to jump';
+        overlay.classList.remove('visible');
+      }
+
+      function jumpOrStart() {
+        if (!state.running || state.gameOver) {
+          resetGame();
+          return;
+        }
+
+        if (state.grounded) {
+          state.jumpVelocity = 8.9;
+          state.grounded = false;
+        }
+      }
+
+      function endGame() {
+        state.running = false;
+        state.gameOver = true;
+        state.shake = 0.4;
+        promptEl.textContent = 'Space / tap to restart';
+        overlay.querySelector('h1').textContent = 'Game Over';
+        overlay.querySelector('p').textContent = `Score ${Math.floor(state.score)} - press space or tap`;
+        overlay.classList.add('visible');
+      }
+
+      function updateRunner(dt, time) {
+        if (!state.grounded) {
+          state.jumpVelocity -= 22 * dt;
+          state.dinoY += state.jumpVelocity * dt;
+          if (state.dinoY <= 0) {
+            state.dinoY = 0;
+            state.jumpVelocity = 0;
+            state.grounded = true;
+          }
+        }
+
+        dino.position.y = state.dinoY;
+        dino.rotation.z = state.grounded ? Math.sin(time * 10) * 0.025 : -state.jumpVelocity * 0.018;
+        const [leftLeg, rightLeg] = dino.userData.legs;
+        leftLeg.rotation.x = Math.sin(time * 13) * (state.grounded ? 0.72 : 0.25);
+        rightLeg.rotation.x = -leftLeg.rotation.x;
+      }
+
+      function updateWorld(dt) {
+        const move = state.speed * dt;
+        state.distance += move;
+
+        for (const stripe of stripes) {
+          stripe.position.z += move;
+          if (stripe.position.z > 8) {
+            stripe.position.z -= 126;
+            stripe.position.x = Math.random() > 0.5 ? -2.2 : 2.2;
+          }
+        }
+
+        for (const item of decor) {
+          item.position.z += move * 0.92;
+          if (item.position.z > 12) {
+            const side = Math.random() > 0.5 ? -1 : 1;
+            item.position.set(side * (5.4 + Math.random() * 2.5), 0, -88 - Math.random() * 28);
+            item.rotation.y = Math.random() * Math.PI;
+            item.scale.setScalar(0.5 + Math.random() * 0.9);
+          }
+        }
+
+        for (let i = obstacles.length - 1; i >= 0; i--) {
+          const obstacle = obstacles[i];
+          obstacle.position.z += move;
+
+          const dz = Math.abs(obstacle.position.z - dino.position.z);
+          const dx = Math.abs(obstacle.position.x - dino.position.x);
+          const heightClearance = state.dinoY > 1.28;
+          if (dz < 0.82 && dx < 0.82 && !heightClearance) {
+            endGame();
+          }
+
+          if (obstacle.position.z > 9) {
+            obstacles.splice(i, 1);
+            recycleObstacle(obstacle);
+          }
+        }
+
+        state.spawnTimer -= dt;
+        if (state.spawnTimer <= 0) {
+          spawnObstacle();
+          state.nextSpawn = Math.max(0.62, 1.36 - state.speed * 0.035 + Math.random() * 0.48);
+          state.spawnTimer = state.nextSpawn;
+        }
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+        const rawDt = clock.getDelta();
+        const dt = Math.min(rawDt, 0.033);
+        const time = clock.elapsedTime;
+
+        sunDisk.rotation.x += dt * 0.08;
+        sunDisk.rotation.y += dt * 0.12;
+
+        if (state.running && !state.gameOver) {
+          state.speed = Math.min(25, state.speed + dt * 0.36);
+          state.score += dt * state.speed * 4.6;
+          scoreEl.textContent = String(Math.floor(state.score));
+          updateRunner(dt, time);
+          updateWorld(dt);
+        } else {
+          updateRunner(dt * 0.45, time);
+        }
+
+        const cameraShake = state.shake > 0 ? Math.sin(time * 70) * state.shake : 0;
+        state.shake = Math.max(0, state.shake - dt * 2);
+        camera.position.x = cameraShake * 0.08;
+        camera.position.y = 5.2 + cameraShake * 0.04;
+        camera.lookAt(0, 1.45, -4.2);
+
+        renderer.render(scene, camera);
+      }
+
+      function resize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      }
+
+      window.addEventListener('resize', resize);
+      window.addEventListener('keydown', (event) => {
+        if (event.code === 'Space' || event.code === 'ArrowUp') {
+          event.preventDefault();
+          jumpOrStart();
+        }
+      });
+      window.addEventListener('pointerdown', jumpOrStart);
+
+      animate();
+    })();
+  </script>
+</body>
+</html>

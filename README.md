@@ -27,6 +27,7 @@
 | `qwen3.5-flash` | Polza.ai | 26s | ~44.000 |
 | `grok-4.3` | Polza.ai | 31s | ~28.000 |
 | `gemini-3.1-flash-lite` | Polza.ai | 19s | ~42.000 |
+| `gpt-5.5` | ChatGPT Plus | 1m 53s | ~20.000 |
 
 ### game
 
@@ -37,10 +38,4 @@
 | `nemotron-3-super-free` | OpenCode Zen | 2m 15s | ~76.000 |
 | `glm-4.5-air` | Openrouter | 2m 39s | ~16.000 |
 | `deepseek-v4-flash` | Polza.ai | 1m 22s | ~49.000 |
-
-
-
-
-
-
-
+| `gpt-5.5` | ChatGPT Plus | 8m 50s | ~63.000 |

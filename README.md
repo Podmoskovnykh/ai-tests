@@ -17,23 +17,24 @@
 ### svg
 
 | Модель | Провайдер | Задачи | Время выполнения | Потраченные токены |
-|---|---|---|---| ---|
-| `kimi-k2.6` | Nvidia | svg | 4m 1s | ? |
-| `minimax-m2.5` | OpenCode Zen | svg | 36s | ? |
-| `nemotron-3-super-free` | OpenCode Zen | svg | 2m 22s | ~44.000 |
-| `gps-oss-120b` | Nvidia | svg | 20s | ~50.000 |
-| `glm-4.5-air` | Openrouter | svg | 2m 35s | ~16.000 |
-| `deepseek-v4-flash` | Polza.ai | svg | 2m 11s | ~63.000 |
-| `qwen3.5-flash` | Polza.ai | svg | 26s | ~44.000 |
-| `grok-4.3` | Polza.ai | svg | 31s | ~28.000 |
-| `gemini-3.1-flash-lite` | Polza.ai | svg | 19s | ~42.000 |
+|---|---|---|---|
+| `kimi-k2.6` | Nvidia | 4m 1s | ? |
+| `minimax-m2.5` | OpenCode Zen | 36s | ? |
+| `nemotron-3-super-free` | OpenCode Zen | 2m 22s | ~44.000 |
+| `gps-oss-120b` | Nvidia | 20s | ~50.000 |
+| `glm-4.5-air` | Openrouter | 2m 35s | ~16.000 |
+| `deepseek-v4-flash` | Polza.ai | 2m 11s | ~63.000 |
+| `qwen3.5-flash` | Polza.ai | 26s | ~44.000 |
+| `grok-4.3` | Polza.ai | 31s | ~28.000 |
+| `gemini-3.1-flash-lite` | Polza.ai | 19s | ~42.000 |
 
 ### game
 
-| Модель | Провайдер | Задачи | Время выполнения | Потраченные токены |
-|---|---|---|---| ---|
-| `minimax-m2.5` | OpenCode Zen | game | 1m 59s | ~22.000 |
-| `deepseek-v4-flash` | Polza.ai | game | 1m 22s | ~49.000 |
+| Модель | Провайдер  | Время выполнения | Потраченные токены |
+|---|---|---|---|
+| `kimi-k2.6` | Nvidia  | 3m 59s | ~47.000 |
+| `minimax-m2.5` | OpenCode Zen  | 1m 59s | ~22.000 |
+| `deepseek-v4-flash` | Polza.ai  | 1m 22s | ~49.000 |
 
 
 

@@ -27,7 +27,7 @@
 ### game
 
 | Модель | Провайдер | Агент | Время выполнения | Потраченные токены |
-|---|---|---|---|---|---|
+|---|---|---|---|---|
 | `kimi-k2.6` | Nvidia | Kilo Code CLI | 3m 59s | ~47.000 |
 | `minimax-m2.5` | OpenCode Zen | Kilo Code CLI | 1m 59s | ~22.000 |
 | `nemotron-3-super-free` | OpenCode Zen | Kilo Code CLI | 2m 15s | ~76.000 |

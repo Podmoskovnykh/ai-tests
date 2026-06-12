@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Growing Plant</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: linear-gradient(180deg, #87CEEB 0%, #E0F0FF 70%, #5a3a1a 70%, #3a2510 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+  svg { display: block; }
+</style>
+</head>
+<body>
+<svg id="scene" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg"></svg>
+<script>
+(function() {
+  const svg = document.getElementById('scene');
+  const NS = 'http://www.w3.org/2000/svg';
+
+  // Helpers
+  function el(tag, attrs) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  // Ground
+  svg.appendChild(el('rect', { x: 0, y: 420, width: 600, height: 180, fill: '#5a3a1a' }));
+  svg.appendChild(el('ellipse', { cx: 300, cy: 420, rx: 280, ry: 25, fill: '#4a6a2a' }));
+
+  // Sun
+  const sun = el('circle', { cx: 520, cy: 80, r: 40, fill: '#FFD700', opacity: 0.9 });
+  svg.appendChild(sun);
+  const rays = el('g', { opacity: 0.3 });
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    rays.appendChild(el('line', {
+      x1: 520 + Math.cos(a) * 45, y1: 80 + Math.sin(a) * 45,
+      x2: 520 + Math.cos(a) * 60, y2: 80 + Math.sin(a) * 60,
+      stroke: '#FFD700', 'stroke-width': 3, 'stroke-linecap': 'round'
+    }));
+  }
+  svg.appendChild(rays);
+
+  // Clouds
+  function makeCloud(x, y, s) {
+    const g = el('g', { transform: `translate(${x},${y}) scale(${s})` });
+    g.appendChild(el('ellipse', { cx: 0, cy: 0, rx: 40, ry: 20, fill: '#fff', opacity: 0.8 }));
+    g.appendChild(el('ellipse', { cx: -25, cy: 5, rx: 25, ry: 15, fill: '#fff', opacity: 0.8 }));
+    g.appendChild(el('ellipse', { cx: 25, cy: 5, rx: 25, ry: 15, fill: '#fff', opacity: 0.8 }));
+    return g;
+  }
+  const clouds = [makeCloud(100, 60, 1.2), makeCloud(380, 40, 0.9), makeCloud(500, 100, 0.7)];
+  clouds.forEach(c => svg.appendChild(c));
+
+  // Stem group
+  const stemGroup = el('g');
+  svg.appendChild(stemGroup);
+
+  // Leaves
+  const leaves = [];
+  const leafCount = 5;
+  const stemTopY = 420;
+  const stemHeight = 250;
+  const stemTop = 420 - stemHeight; // 170
+
+  // Stem path elements
+  const stemPath = el('path', {
+    d: `M300,420 L300,420`,
+    stroke: '#2d8a2d',
+    'stroke-width': 6,
+    fill: 'none',
+    'stroke-linecap': 'round'
+  });
+  stemGroup.appendChild(stemPath);
+
+  // Stem highlight
+  const stemHighlight = el('path', {
+    d: `M300,420 L300,420`,
+    stroke: '#4cbf4c',
+    'stroke-width': 2,
+    fill: 'none',
+    'stroke-linecap': 'round',
+    opacity: 0.5
+  });
+  stemGroup.appendChild(stemHighlight);
+
+  // Flower at top
+  const flowerGroup = el('g', { opacity: 0 });
+  stemGroup.appendChild(flowerGroup);
+
+  // Create leaf shape
+  function createLeafPath(angle) {
+    const d = `M0,0 C20,-15 50,-10 65,0 C50,10 20,15 0,0 Z`;
+    return el('path', { d, fill: '#3a9a3a', stroke: '#2a7a2a', 'stroke-width': 1 });
+  }
+
+  function createLeafGroup(side, idx) {
+    const g = el('g');
+    const leaf = createLeafPath();
+    g.appendChild(leaf);
+    g._side = side;
+    g._idx = idx;
+    g._scale = 0;
+    g._rotation = 0;
+    g._targetScale = 0.6 + idx * 0.1;
+    g._targetRotation = side === 'left' ? -30 - idx * 8 : 30 + idx * 8;
+    g._phase = idx * 0.4;
+    return g;
+  }
+
+  for (let i = 0; i < leafCount; i++) {
+    const yRatio = 0.25 + i * 0.15;
+    const leftLeaf = createLeafGroup('left', i);
+    leftLeaf._yRatio = yRatio;
+    const rightLeaf = createLeafGroup('right', i);
+    rightLeaf._yRatio = yRatio;
+    leaves.push(leftLeaf, rightLeaf);
+  }
+
+  // Flower petals
+  const petalCount = 8;
+  for (let i = 0; i < petalCount; i++) {
+    const a = (i / petalCount) * Math.PI * 2;
+    const petal = el('ellipse', {
+      cx: 300, cy: stemTop - 10,
+      rx: 12, ry: 6,
+      fill: i % 2 === 0 ? '#FF6B9D' : '#FF8FAB',
+      transform: `rotate(${(a * 180 / Math.PI)}, 300, ${stemTop - 10})`
+    });
+    petal.setAttribute('transform',
+      `translate(300, ${stemTop - 10}) rotate(${(a * 180 / Math.PI)}) translate(-300, ${stemTop - 10})`
+    );
+    flowerGroup.appendChild(petal);
+  }
+  flowerGroup.appendChild(el('circle', {
+    cx: 300, cy: stemTop - 10, r: 8, fill: '#FFD700'
+  }));
+
+  // Wind particles
+  const windParticles = [];
+  for (let i = 0; i < 8; i++) {
+    const p = el('line', {
+      x1: 0, y1: 0, x2: 20, y2: 0,
+      stroke: '#fff', 'stroke-width': 1, opacity: 0.2, 'stroke-linecap': 'round'
+    });
+    p._x = Math.random() * 600;
+    p._y = 50 + Math.random() * 300;
+    p._speed = 1 + Math.random() * 2;
+    p._phase = Math.random() * Math.PI * 2;
+    windParticles.push(p);
+    svg.appendChild(p);
+  }
+
+  // Animation state
+  const CYCLE_DURATION = 6000; // ms for full loop
+  let startTime = null;
+
+  // Spring physics for leaf animation
+  function springLerp(current, target, velocity, stiffness, damping, dt) {
+    const force = (target - current) * stiffness;
+    velocity += force * dt;
+    velocity *= damping;
+    current += velocity * dt;
+    return { value: current, velocity };
+  }
+
+  function easeInOutCubic(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  function easeOutElastic(t) {
+    if (t === 0 || t === 1) return t;
+    return Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * (2 * Math.PI / 3)) + 1;
+  }
+
+  function animate(ts) {
+    if (!startTime) startTime = ts;
+    const elapsed = (ts - startTime) % CYCLE_DURATION;
+    const t = elapsed / CYCLE_DURATION; // 0..1
+
+    // Stem growth: grows from 0 to full in first 25% of cycle, stays, then shrinks in last 15%
+    let stemT;
+    if (t < 0.25) {
+      stemT = easeInOutCubic(t / 0.25);
+    } else if (t < 0.85) {
+      stemT = 1;
+    } else {
+      stemT = 1 - easeInOutCubic((t - 0.85) / 0.15);
+    }
+
+    const currentStemHeight = stemT * stemHeight;
+    const currentTop = stemTopY - currentStemHeight;
+
+    // Slight curve in stem
+    const curveOffset = Math.sin(t * Math.PI * 4) * 5;
+
+    stemPath.setAttribute('d',
+      `M300,${stemTopY} Q${300 + curveOffset},${stemTopY - currentStemHeight * 0.5} 300,${currentTop}`
+    );
+    stemHighlight.setAttribute('d',
+      `M300,${stemTopY} Q${300 + curveOffset},${stemTopY - currentStemHeight * 0.5} 300,${currentTop}`
+    );
+
+    // Flower visibility
+    if (stemT > 0.5) {
+      const flowerT = (stemT - 0.5) / 0.5;
+      flowerGroup.setAttribute('opacity', easeOutElastic(Math.min(flowerT * 2, 1)));
+    } else {
+      flowerGroup.setAttribute('opacity', 0);
+    }
+
+    // Wind sway
+    const windForce = Math.sin(elapsed * 0.002) * 3 + Math.sin(elapsed * 0.005) * 2;
+
+    // Update leaves
+    leaves.forEach(leaf => {
+      const yRatio = leaf._yRatio;
+      const leafStemY = stemTopY - currentStemHeight * yRatio;
+
+      // Leaf growth: starts growing when stem reaches its position
+      const leafStart = 0.15 + yRatio * 0.5;
+      let leafT;
+      if (t < leafStart) {
+        leafT = 0;
+      } else if (t < leafStart + 0.15) {
+        leafT = easeOutElastic((t - leafStart) / 0.15);
+      } else if (t < 0.85) {
+        leafT = 1;
+      } else {
+        leafT = 1 - easeInOutCubic((t - 0.85) / 0.15);
+      }
+
+      // Spring physics
+      const stiffness = 120;
+      const damping = 0.88;
+      const dt = 0.016;
+
+      leaf._scale = springLerp(leaf._scale, leafT * leaf._targetScale,
+        leaf._velocity || 0, stiffness, damping, dt).value;
+      leaf._velocity = leaf._velocity || 0;
+
+      const rot = springLerp(leaf._rotation, leaf._targetRotation + windForce * (1 + yRatio),
+        leaf._rotVel || 0, stiffness * 0.5, damping, dt);
+      leaf._rotation = rot.value;
+      leaf._rotVel = rot.velocity;
+
+      const sideMult = leaf._side === 'left' ? -1 : 1;
+      const angle = leaf._rotation * sideMult;
+
+      leaf.setAttribute('transform',
+        `translate(300, ${leafStemY}) rotate(${angle}) scale(${leaf._scale})`
+      );
+    });
+
+    // Wind particles
+    windParticles.forEach(p => {
+      p._x -= p._speed * (1 + stemT * 2);
+      if (p._x < -30) {
+        p._x = 630;
+        p._y = 50 + Math.random() * 300;
+      }
+      const wave = Math.sin(elapsed * 0.003 + p._phase) * 10;
+      p.setAttribute('x1', p._x);
+      p.setAttribute('y1', p._y + wave);
+      p.setAttribute('x2', p._x + 20);
+      p.setAttribute('y2', p._y + wave);
+    });
+
+    // Sun pulse
+    const sunPulse = 1 + Math.sin(elapsed * 0.003) * 0.05;
+    sun.setAttribute('r', 40 * sunPulse);
+
+    updateClouds(elapsed);
+
+    requestAnimationFrame(animate);
+  }
+
+  // Store cloud base positions
+  const cloudBaseX = [100, 380, 500];
+  const cloudBaseY = [60, 40, 100];
+
+  function updateClouds(elapsed) {
+    clouds.forEach((c, i) => {
+      const dx = Math.sin(elapsed * 0.0003 * (i + 1) + i * 2) * 30;
+      c.setAttribute('transform', `translate(${cloudBaseX[i] + dx},${cloudBaseY[i]})`);
+    });
+  }
+
+  requestAnimationFrame(animate);
+})();
+</script>
+</body>
+</html>

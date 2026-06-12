@@ -23,6 +23,7 @@
 | `gemini-3.1-flash-lite` | Polza.ai | Kilo Code CLI | 19s | [открыть](https://podmoskovnykh.github.io/ai-tests/gemini-3.1-flash-lite/svg/index.html) |
 | `gpt-5.5` | ChatGPT Plus | Codex | 1m 53s | [открыть](https://podmoskovnykh.github.io/ai-tests/gpt-5.5/svg/index.html) |
 | `omnicoder-9b@q6_k` | Local | Kilo Code CLI | 1m 5s | [открыть](https://podmoskovnykh.github.io/ai-tests/omnicoder-9b@q6_k/svg/index.html) |
+| `claude-opus-4.8` | Antrophic | Claude Code | 22m 32s | [открыть](https://podmoskovnykh.github.io/ai-tests/claude-opus-4.8/svg/index.html>
 
 ### game
 

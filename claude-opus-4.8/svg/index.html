@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Growth — an SVG plant that grows, sways &amp; loops forever</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #07141d; overflow: hidden; }
+  #stage { position: fixed; inset: 0; }
+  #stage svg { display: block; width: 100vw; height: 100vh; }
+  .caption {
+    position: fixed; left: 18px; bottom: 14px;
+    font: 500 13px/1.3 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    letter-spacing: .14em; text-transform: uppercase;
+    color: rgba(200, 235, 212, .42); user-select: none; pointer-events: none;
+  }
+  .caption b { color: rgba(180, 245, 200, .72); font-weight: 700; }
+</style>
+</head>
+<body>
+  <div id="stage"></div>
+  <div class="caption"><b>growth</b> &middot; svg · seamless loop</div>
+
+<script>
+"use strict";
+
+/* ===================================================================== *
+ *  PURE-START  — deterministic, DOM-free simulation + SVG markup.
+ *  Everything between the PURE markers is a pure function of time `t`
+ *  (seconds) and is verified headlessly in test.mjs. The whole scene is
+ *  periodic with CYCLE and C1-continuous across the loop seam, so the
+ *  animation repeats forever with no visible cut.
+ * ===================================================================== */
+
+const TWO_PI = Math.PI * 2;
+
+/* ---- timing & layout -------------------------------------------------- */
+const CYCLE      = 12.5;     // seconds for one full life cycle (the loop period)
+const VW = 1000, VH = 720;   // viewBox
+const BASE_X = 500;          // where the stem meets the soil
+const BASE_Y = 590;
+const FULL_H = 442;          // stem height at full growth (tip rises to ~148)
+const G_MIN  = 0.045;        // a sprout is always present (never an empty frame)
+
+/* ---- stem ------------------------------------------------------------- */
+const NSEG          = 46;    // samples along the stem (outline resolution)
+const STEM_W_BASE   = 16;    // thickness at the base
+const STEM_W_TIP    = 2.2;   // thickness at the growing tip
+const SWAY_AMP      = 52;    // px of wind deflection at the tip
+const WIND_LAG_T    = 0.85;  // wind travels up the stem (whip / spring feel)
+const INTRINSIC_AMP = 13;    // gentle natural lean of the stem
+const SEN_BOW       = 40;    // sideways bow while wilting
+const SEN_SAG       = 30;    // downward sag of the tip while wilting
+
+/* ---- leaves ----------------------------------------------------------- */
+const NLEAF       = 11;
+const UNFURL_SPAN = 0.15;    // how much growth a leaf takes to fully open
+const OPEN_ANGLE  = 57;      // open angle away from the stem (degrees)
+const FOLD_ANGLE  = 9;       // angle when still furled against the stem
+const FLUTTER_DEG = 11;      // wind flutter amplitude (degrees)
+const LEAF_DROOP  = 34;      // extra droop while wilting (degrees)
+
+/* ---- particles -------------------------------------------------------- */
+const NMOTE = 18;
+
+/* ---- small math helpers ---------------------------------------------- */
+function clamp(x, a, b) { return x < a ? a : x > b ? b : x; }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function smoothstep(a, b, x) {
+  const t = clamp((x - a) / (b - a), 0, 1);
+  return t * t * (3 - 2 * t);
+}
+// springy unfurl: rises from 0, overshoots slightly past 1, settles to ~1.
+function springEase(u) {
+  if (u <= 0) return 0;
+  if (u >= 1) u = 1;
+  return 1 - Math.exp(-6 * u) * Math.cos(7 * u);
+}
+
+/* ---- the loop's two periodic drivers --------------------------------- */
+// Growth envelope over the cycle: sprout -> grow -> hold -> recede to sprout.
+// shape(0)=shape(1)=0 with zero slope at both ends => C1-continuous seam.
+function growShape(p) {
+  const up   = smoothstep(0.00, 0.58, p);   // extend
+  const down = 1 - smoothstep(0.72, 1.00, p); // recede
+  return Math.min(up, down);
+}
+// Senescence pulse — droop/bow while wilting; 0 (with zero slope) at the seam.
+function sen(p) {
+  return smoothstep(0.72, 0.90, p) * (1 - smoothstep(0.96, 1.00, p));
+}
+// Wind: a sum of harmonics at integer multiples of the base frequency, so it
+// is exactly periodic with CYCLE. Ranges roughly within [-1, 1].
+function wind(t) {
+  const w = TWO_PI / CYCLE;
+  return 0.55 * Math.sin(w * t)
+       + 0.28 * Math.sin(2 * w * t + 1.3)
+       + 0.17 * Math.sin(3 * w * t + 2.7);
+}
+// Per-leaf flutter — faster harmonics, still integer multiples => periodic.
+function leafWind(t, i) {
+  const w = TWO_PI / CYCLE;
+  return 0.62 * Math.sin(3 * w * t + LEAF_PHASE[i])
+       + 0.38 * Math.sin(w * t + LEAF_PHASE[i] * 0.7);
+}
+
+/* ---- the stem centreline: position of a point at height-fraction hh --- */
+function stemPoint(hh, t, s) {
+  const lw   = wind(t - WIND_LAG_T * hh);     // travelling wave up the stem
+  const bend = SWAY_AMP * hh * hh * lw;       // cantilever: tip moves most
+  const intr = INTRINSIC_AMP * Math.sin(hh * Math.PI * 0.9);
+  const droop = s * SEN_BOW * hh * hh;        // wilt: bow sideways
+  const x = BASE_X + intr + bend + droop;
+  const y = BASE_Y - hh * FULL_H + s * SEN_SAG * hh * hh; // wilt: sag down
+  return { x, y };
+}
+
+/* ---- per-leaf static data (deterministic) ---------------------------- */
+const LEAF_PHASE = [], LEAF_H = [], LEAF_SIDE = [], LEAF_BODY = [], LEAF_MID = [];
+function leafBodyPath(L, W) {
+  return `M0,0C${(L*0.16).toFixed(1)},${(-W*0.52).toFixed(1)} ${(L*0.60).toFixed(1)},${(-W*0.60).toFixed(1)} ${L.toFixed(1)},0`
+       + `C${(L*0.60).toFixed(1)},${(W*0.44).toFixed(1)} ${(L*0.16).toFixed(1)},${(W*0.38).toFixed(1)} 0,0Z`;
+}
+function leafMidPath(L, W) {
+  return `M0,0Q${(L*0.5).toFixed(1)},${(-W*0.10).toFixed(1)} ${(L*0.96).toFixed(1)},0`;
+}
+for (let i = 0; i < NLEAF; i++) {
+  const f = i / (NLEAF - 1);
+  LEAF_H[i]     = 0.10 + 0.84 * f + 0.015 * Math.sin(i * 4.0);
+  LEAF_SIDE[i]  = (i % 2 === 0) ? 1 : -1;
+  LEAF_PHASE[i] = i * 1.7;
+  const L = lerp(94, 42, f);
+  const W = 0.46 * L;
+  LEAF_BODY[i] = leafBodyPath(L, W);
+  LEAF_MID[i]  = leafMidPath(L, W);
+}
+
+/* ---- particle static data (deterministic seeded PRNG) ---------------- */
+const MOTE_X = [], MOTE_OFF = [], MOTE_PH = [], MOTE_SPD = [], MOTE_R = [], MOTE_OP = [];
+(function () {
+  let s = 20240611;
+  const rnd = () => ((s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  for (let i = 0; i < NMOTE; i++) {
+    MOTE_X[i]   = 110 + rnd() * 780;
+    MOTE_OFF[i] = rnd();
+    MOTE_PH[i]  = rnd() * TWO_PI;
+    MOTE_SPD[i] = 1 + Math.floor(rnd() * 2);   // integer => periodic with CYCLE
+    MOTE_R[i]   = 1.1 + rnd() * 2.3;
+    MOTE_OP[i]  = 0.30 + rnd() * 0.5;
+  }
+})();
+
+/* ---- compute one full frame as plain numbers ------------------------- */
+function computeFrame(t) {
+  const p = ((t / CYCLE) % 1 + 1) % 1;
+  const g = G_MIN + (1 - G_MIN) * growShape(p);
+  const s = sen(p);
+
+  // stem centreline, then offset to left/right edges for a tapered outline.
+  const cen = [];
+  for (let k = 0; k <= NSEG; k++) cen.push(stemPoint((k / NSEG) * g, t, s));
+  const stem = [];
+  for (let k = 0; k <= NSEG; k++) {
+    const half = lerp(STEM_W_BASE, STEM_W_TIP, k / NSEG) * 0.5;
+    const a = cen[Math.max(0, k - 1)], b = cen[Math.min(NSEG, k + 1)];
+    let tx = b.x - a.x, ty = b.y - a.y;
+    const ln = Math.hypot(tx, ty) || 1; tx /= ln; ty /= ln;
+    const nx = -ty, ny = tx;
+    stem.push({
+      cx: cen[k].x, cy: cen[k].y,
+      lx: cen[k].x + nx * half, ly: cen[k].y + ny * half,
+      rx: cen[k].x - nx * half, ry: cen[k].y - ny * half,
+    });
+  }
+
+  // leaves — each unfurls when the growing tip passes its node.
+  const leaves = [];
+  for (let i = 0; i < NLEAF; i++) {
+    const hi = LEAF_H[i];
+    const u  = smoothstep(hi, hi + UNFURL_SPAN, g);
+    const P  = stemPoint(hi, t, s);
+    const e  = 0.012;
+    const A = stemPoint(Math.max(0, hi - e), t, s);
+    const B = stemPoint(Math.min(1, hi + e), t, s);
+    const stemAng = Math.atan2(B.y - A.y, B.x - A.x) * 180 / Math.PI; // ~ -90 (up)
+    const swing = lerp(FOLD_ANGLE, OPEN_ANGLE, u) - s * LEAF_DROOP;
+    const angle = stemAng + LEAF_SIDE[i] * swing + FLUTTER_DEG * leafWind(t, i);
+    leaves.push({
+      x: P.x, y: P.y, angle,
+      sx: springEase(u),            // length scale (springy)
+      sy: smoothstep(0, 1, u),      // width opens slightly after length
+      op: clamp(u * 1.5, 0, 1),
+    });
+  }
+
+  // terminal flower bud at the growing tip; blooms as growth completes.
+  const tip = stemPoint(g, t, s);
+  const bloom = smoothstep(0.86, 1.0, g);
+  const flower = { x: tip.x, y: tip.y, rot: 6 * wind(t), scale: springEase(bloom), op: bloom };
+
+  // drifting pollen motes (fade at the ends of their travel so the wrap hides).
+  const motes = [];
+  for (let i = 0; i < NMOTE; i++) {
+    const trav = ((t / CYCLE) * MOTE_SPD[i] + MOTE_OFF[i]) % 1;
+    const x = MOTE_X[i] + 34 * Math.sin(TWO_PI * t / CYCLE + MOTE_PH[i]);
+    const y = (BASE_Y + 30) - trav * ((BASE_Y + 30) - 50);
+    const op = smoothstep(0, 0.12, trav) * (1 - smoothstep(0.86, 1, trav)) * MOTE_OP[i];
+    motes.push({ x, y, r: MOTE_R[i], op });
+  }
+
+  return { p, g, s, stem, leaves, flower, motes };
+}
+
+/* ---- numeric fingerprint of a frame (used by the headless seam test) -- */
+function frameSignature(t) {
+  const f = computeFrame(t);
+  const a = [f.g, f.s];
+  for (const k of f.stem) a.push(k.lx, k.ly, k.rx, k.ry);
+  for (const L of f.leaves) a.push(L.x, L.y, L.angle, L.sx, L.sy, L.op);
+  a.push(f.flower.x, f.flower.y, f.flower.rot, f.flower.scale, f.flower.op);
+  // motes weighted by opacity: invisible motes can't contribute a visible jump.
+  for (const m of f.motes) a.push(m.x * m.op, m.y * m.op, m.op);
+  return a;
+}
+
+/* ---- SVG markup builders --------------------------------------------- */
+const r1 = (x) => (Math.round(x * 10) / 10);
+const r2 = (x) => (Math.round(x * 100) / 100);
+const r3 = (x) => (Math.round(x * 1000) / 1000);
+
+function stemFillPath(stem) {
+  let d = `M${r1(stem[0].lx)},${r1(stem[0].ly)}`;
+  for (let k = 1; k < stem.length; k++) d += `L${r1(stem[k].lx)},${r1(stem[k].ly)}`;
+  for (let k = stem.length - 1; k >= 0; k--) d += `L${r1(stem[k].rx)},${r1(stem[k].ry)}`;
+  return d + "Z";
+}
+function stemMidPath(stem) {
+  let d = `M${r1(stem[0].cx)},${r1(stem[0].cy)}`;
+  for (let k = 1; k < stem.length; k++) d += `L${r1(stem[k].cx)},${r1(stem[k].cy)}`;
+  return d;
+}
+
+function buildPlantMarkup(t) {
+  const f = computeFrame(t);
+  // soft ground shadow that grows with the plant (sits under the stem)
+  const gf = clamp((f.g - G_MIN) / (1 - G_MIN), 0, 1);
+  let s = `<ellipse cx="${BASE_X}" cy="604" rx="${r1(lerp(15, 66, gf))}" ry="${r1(lerp(4, 11, gf))}" fill="url(#groundShadow)" opacity="${r2(lerp(.12, .4, gf))}"/>`;
+  s += `<path d="${stemFillPath(f.stem)}" fill="url(#stemGrad)" stroke="#1b5524" stroke-width="1" stroke-opacity=".45"/>`;
+  s += `<path d="${stemMidPath(f.stem)}" fill="none" stroke="url(#stemHi)" stroke-width="2.4" stroke-linecap="round" stroke-opacity=".55"/>`;
+  for (let i = 0; i < NLEAF; i++) {
+    const L = f.leaves[i];
+    if (L.op <= 0.004) continue;
+    s += `<g transform="translate(${r1(L.x)},${r1(L.y)}) rotate(${r1(L.angle)}) scale(${r3(L.sx)},${r3(L.sy)})" opacity="${r2(L.op)}">`
+       +   `<path d="${LEAF_BODY[i]}" fill="url(#leafGrad)"/>`
+       +   `<path d="${LEAF_MID[i]}" fill="none" stroke="#1d5328" stroke-width="1.5" stroke-opacity=".5"/>`
+       + `</g>`;
+  }
+  const fl = f.flower;
+  if (fl.op > 0.004 || true) {
+    let petals = "";
+    for (let k = 0; k < 5; k++) petals += `<ellipse cx="13" cy="0" rx="13" ry="6.5" fill="#fdf4d6" transform="rotate(${k * 72})"/>`;
+    s += `<g transform="translate(${r1(fl.x)},${r1(fl.y)}) rotate(${r1(fl.rot)})">`
+       +   `<circle r="5" fill="#3f9a45"/>`
+       +   `<g transform="scale(${r3(fl.scale)})" opacity="${r2(fl.op)}">${petals}<circle r="6" fill="#f4b53e"/></g>`
+       + `</g>`;
+  }
+  return s;
+}
+
+function buildMotesMarkup(t) {
+  const f = computeFrame(t);
+  let s = "";
+  for (const m of f.motes) {
+    if (m.op <= 0.004) continue;
+    s += `<circle cx="${r1(m.x)}" cy="${r1(m.y)}" r="${r2(m.r)}" fill="#bdf0cf" opacity="${r2(m.op)}"/>`;
+  }
+  return s;
+}
+
+const DEFS = `<defs>
+  <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#081a22"/><stop offset=".5" stop-color="#0c2a30"/>
+    <stop offset=".8" stop-color="#103a39"/><stop offset="1" stop-color="#0c2c28"/>
+  </linearGradient>
+  <radialGradient id="halo" cx=".5" cy=".40" r=".62">
+    <stop offset="0" stop-color="#8fe6b8" stop-opacity=".17"/>
+    <stop offset=".5" stop-color="#8fe6b8" stop-opacity=".06"/>
+    <stop offset="1" stop-color="#8fe6b8" stop-opacity="0"/>
+  </radialGradient>
+  <radialGradient id="groundShadow" cx=".5" cy=".5" r=".5">
+    <stop offset="0" stop-color="#020c07" stop-opacity="1"/>
+    <stop offset=".7" stop-color="#020c07" stop-opacity=".55"/>
+    <stop offset="1" stop-color="#020c07" stop-opacity="0"/>
+  </radialGradient>
+  <radialGradient id="sun" cx=".5" cy=".5" r=".5">
+    <stop offset="0" stop-color="#eafff0" stop-opacity=".5"/>
+    <stop offset=".5" stop-color="#cdeecf" stop-opacity=".16"/><stop offset="1" stop-color="#cdeecf" stop-opacity="0"/>
+  </radialGradient>
+  <linearGradient id="groundGrad" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#123a2f"/><stop offset="1" stop-color="#05140e"/>
+  </linearGradient>
+  <linearGradient id="stemGrad" x1="500" y1="590" x2="500" y2="150" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#236e30"/><stop offset="1" stop-color="#8fe86a"/>
+  </linearGradient>
+  <linearGradient id="stemHi" x1="500" y1="590" x2="500" y2="150" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#3a8f48" stop-opacity=".2"/><stop offset="1" stop-color="#c8ffa8" stop-opacity=".85"/>
+  </linearGradient>
+  <linearGradient id="leafGrad" x1="0" y1=".55" x2="1" y2=".4">
+    <stop offset="0" stop-color="#2c8438"/><stop offset="1" stop-color="#93e173"/>
+  </linearGradient>
+  <radialGradient id="vignette" cx=".5" cy=".45" r=".75">
+    <stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#04100b" stop-opacity=".55"/>
+  </radialGradient>
+  <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+    <feGaussianBlur stdDeviation="4" result="b"/>
+    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+</defs>`;
+
+const BACKDROP = `<rect width="1000" height="720" fill="url(#skyGrad)"/>`
+  + `<rect width="1000" height="720" fill="url(#halo)"/>`
+  + `<circle cx="232" cy="160" r="120" fill="url(#sun)"/>`
+  + `<path d="M0,600C250,576 760,576 1000,600L1000,720L0,720Z" fill="url(#groundGrad)"/>`
+  + `<path d="M0,600C250,576 760,576 1000,600" fill="none" stroke="#5fcf8f" stroke-opacity=".12" stroke-width="2"/>`;
+
+function buildFullSVG(t) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${VW} ${VH}" preserveAspectRatio="xMidYMid slice">`
+    + DEFS + BACKDROP
+    + `<g id="motes">${buildMotesMarkup(t)}</g>`
+    + `<g id="plant" filter="url(#glow)">${buildPlantMarkup(t)}</g>`
+    + `<rect width="1000" height="720" fill="url(#vignette)" pointer-events="none"/>`
+    + `</svg>`;
+}
+
+/* PURE-END */
+
+/* ===================================================================== *
+ *  DOM / animation glue (browser only).
+ * ===================================================================== */
+(function () {
+  if (typeof document === "undefined") return;
+
+  const SVGNS = "http://www.w3.org/2000/svg";
+  const stage = document.getElementById("stage");
+  stage.innerHTML = buildFullSVG(0);
+  const svg    = stage.querySelector("svg");
+  const motesG = svg.querySelector("#motes");
+  const plantG = svg.querySelector("#plant");
+
+  // Replace a group's children from an SVG-markup string (parsed as SVG).
+  function setInner(parent, markup) {
+    const doc = new DOMParser().parseFromString(
+      `<svg xmlns="${SVGNS}">${markup}</svg>`, "image/svg+xml");
+    if (doc.getElementsByTagName("parsererror").length) { parent.textContent = ""; return; }
+    const frag = document.createDocumentFragment();
+    const kids = doc.documentElement.childNodes;
+    for (let i = 0; i < kids.length; i++) frag.appendChild(document.importNode(kids[i], true));
+    parent.replaceChildren(frag);
+  }
+
+  function render(t) {
+    setInner(motesG, buildMotesMarkup(t));
+    setInner(plantG, buildPlantMarkup(t));
+  }
+
+  // ?t=SECONDS freezes a single frame (handy for inspection / screenshots).
+  const frozen = new URLSearchParams(location.search).get("t");
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  if (frozen !== null) {
+    render(parseFloat(frozen) || 0);
+  } else if (reduce) {
+    render(CYCLE * 0.62);                 // a lush, fully-grown still frame
+  } else {
+    const start = performance.now();
+    (function loop(now) {
+      render((now - start) / 1000);
+      requestAnimationFrame(loop);
+    })(start);
+  }
+})();
+</script>
+</body>
+</html>
